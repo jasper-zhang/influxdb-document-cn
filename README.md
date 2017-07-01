@@ -1,1 +1,1 @@
-influxdb中文文档
+InfluxDB中文文档
