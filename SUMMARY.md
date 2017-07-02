@@ -10,4 +10,11 @@
     * [采样和数据保留](Guide/downsampling_and_retention.md)
     * [硬件指南](Guide/hardware_sizing.md)
     * [HTTPS支持](Guide/https_setup.md)
+* [概念介绍](Concepts/index.md)
+    * [关键概念](Concepts/key_concepts.md)
+    * [专业术语](Concepts/glossary.md)
+    * [与SQL比较](Concepts/crosswalk.md)
+    * [InfluxDB的设计见解和权衡](Concepts/insights_tradeoffs.md)
+    * [模式设计](Concepts/schema_and_data_layout.md)
+    * [存储引擎](Concepts/storage_engine.md)
 
