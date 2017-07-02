@@ -15,7 +15,7 @@ InfluxDB是一个用于存储和分析时间序列数据的开源数据库。
 
 所以我就抽空翻译了一下官方的手册，官方文档的开源地址请见[https://github.com/influxdata/docs.influxdata.com](https://github.com/influxdata/docs.influxdata.com)中的InfluxDB部分。
 
-现在还在不断完善中，欢迎**pull request ！**
+现在还在不断完善中，欢迎加入来贡献你的一份力量。
 
 如果感觉对你有所帮助，请**给个star ！**
 
