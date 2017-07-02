@@ -143,7 +143,7 @@ InfluxDB应该跑在SSD上，任何其他存储配置将具有较低的性能特
 
 内存的增长和series的基数存在一个指数级的关系：
 
-![](images/series-cardinality.png]
+![](images/series-cardinality.png)
 
 ## 需要哪种类型的磁盘？
 InfluxDB被设计运行在SSD上，InfluxData团队不会在HDD和网络存储上测试InfluxDB，所以不太建议在生产上这么去使用。在机械磁盘上性能会下降一个数量级甚至在中等负载下系统都可能死掉。为了最好的结果，InfluxDB至少需要磁盘提供1000 IOPS的性能。
