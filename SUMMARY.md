@@ -9,7 +9,7 @@
     * [读数据](Guide/querying_data.md)
     * [采样和数据保留](Guide/downsampling_and_retention.md)
     * [硬件指南](Guide/hardware_sizing.md)
-    * [HTTPS支持](Guide/https_setup.md)
+    * [HTTPS设置](Guide/https_setup.md)
 * [概念介绍](Concepts/index.md)
     * [关键概念](Concepts/key_concepts.md)
     * [专业术语](Concepts/glossary.md)
