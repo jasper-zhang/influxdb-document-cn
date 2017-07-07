@@ -9,7 +9,7 @@
 
 介绍在Ubuntu、Debian、Redhat、Centos和OS X上如何安装InfluxDB。
 
-## [开始使用](getting_start.html)
+## [入门指南](getting_start.html)
 
 介绍利用InfluxDB怎样读写时序数据。
 

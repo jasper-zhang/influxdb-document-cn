@@ -1,8 +1,8 @@
 # 使用指南
 
-### [写数据](writing_data.md)
+### [写入数据](writing_data.md)
 
-### [读数据](querying_data.md)
+### [查询数据](querying_data.md)
 
 ### [采样和数据保留](downsampling_and_retention.md)
 
