@@ -15,6 +15,6 @@
     * [专业术语](Concepts/glossary.md)
     * [与SQL比较](Concepts/crosswalk.md)
     * [InfluxDB的设计见解和权衡](Concepts/insights_tradeoffs.md)
-    * [模式设计](Concepts/schema_and_data_layout.md)
+    * [schema设计](Concepts/schema_and_data_layout.md)
     * [存储引擎](Concepts/storage_engine.md)
 

@@ -15,7 +15,7 @@
 ## [InfluxDB的设计见解和权衡](insights_tradeoffs.md)
 简要介绍了在设计InfluxDB的时候对性能做的一些权衡。
 
-## [模式设计](schema_and_data_layout.md)
+## [schema设计](schema_and_data_layout.md)
 InfluxDB时间序列数据结构的概述及其如何影响性能。
 
 
