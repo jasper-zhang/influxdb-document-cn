@@ -44,8 +44,24 @@ WAL中的每个条目都遵循[TLV标准](https://en.wikipedia.org/wiki/Type-len
 通过重新读取磁盘上的WAL文件，可以重新创建内存中缓存。
 
 #### TSM Files
+TSM files是内存映射的只读文件的集合。 这些文件的结构看起来与LevelDB中的SSTable或其他LSM Tree变体非常相似。
 
+一个TSMfile由四部分组成：header，blocks，index和footer:
+![](images/TSM_sections.png)
+Header是识别文件类型和版本号的一个魔法数字:
+![](images/TSM_header.png)
+blocks是一组CRC32校验和数据对的序列。  
+block数据对文件是不透明的。   
+CRC32用于块级错误检测。  
+block的长度存储在索引中。
+![](images/TSM_blocks.png)
+blocks之后是文件中blocks的索引。索引由先按key顺序，如果key相同则按时间顺序排列的索引条目序列组成。key包括measurement名称，tag set和一个field。如果一个点有多个field则在TSM文件中创建多个索引条目。每个索引条目以密钥长度和密钥开始，后跟block类型（float，int，bool，string）以及该密钥后面的索引block条目数的计数。 然后是每个索引block条目，其由block的最小和最大时间组成，之后是block所在的文件的偏移量以及block的大小。 包含该key的TSM文件中每个block都有一个索引block条目。
 
+索引结构可以提供对所有block的有效访问，以及能够确定访问给定key相关联数据需要多大代价。给定一个key和时间戳，我们可以确定文件是否包含该时间戳的block。我们还可以确定该block所在的位置，以及取出该block必须读取多少数据。了解了block的大小，我们可以有效地提供IO语句。
+![](images/TSM_index.png)
+最后一部分是footer，它存储了索引开头的offset。
+![](images/TSM_footer.png)
 
+#### Compression
 
 
