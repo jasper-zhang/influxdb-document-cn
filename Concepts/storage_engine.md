@@ -72,5 +72,13 @@ blocks之后是文件中blocks的索引。索引由先按key顺序，如果key�
 ![](images/TSM_footer.png)
 
 #### Compression
+每个block都被压缩，以便减少存储空间和查询时磁盘IO。block包含时间戳和给定seris和field的值。每个block都有一个字节的header，之后跟着压缩过的时间戳，然后是压缩后的值。
 
+![](images/TSM_compression.png)
+
+时间戳和值都会被压缩，并使用依赖于数据类型及其形状的编码分开存储。独立存储允许时间戳编码用于所有时间戳，同时允许不同字段类型的不同编码。例如，一些点可能能够使用游程长度编码，而其他点可能不能。
+
+每个值类型还包含一个1byte的header，表示剩余字节的压缩类型。 四个高位存储压缩类型，如果需要，四个低位由编码器使用。
+
+#### Timestamps
 
