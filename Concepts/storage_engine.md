@@ -11,7 +11,7 @@ InfluxDB将为每个时间段创建一个分片。例如，如果您有一个持
 ### 存储引擎
 存储引擎将多个组件结合在一起，并提供用于存储和查询series数据的外部接口。 它由许多组件组成，每个组件都起着特定的作用：
  
- * In-Memory Index —— 内存中的索引是分片上的共享索引，可以快速访问measurement，tag和series。 引擎使用该索引，但不是特指存储引擎本身。
+* In-Memory Index —— 内存中的索引是分片上的共享索引，可以快速访问measurement，tag和series。 引擎使用该索引，但不是特指存储引擎本身。
 * WAL —— WAL是一种写优化的存储格式，允许写入持久化，但不容易查询。 对WAL的写入就是append到固定大小的段中。
 * Cache —— Cache是存储在WAL中的数据的内存中的表示。 它在运行时可以被查询，并与TSM文件中存储的数据进行合并。
 * TSM Files —— TSM Files中保存着柱状格式的压缩过的series数据。
@@ -89,4 +89,27 @@ blocks之后是文件中blocks的索引。索引由先按key顺序，如果key�
 
 ##### Floats
 使用[Facebook Gorilla paper](http://www.vldb.org/pvldb/vol8/p1816-teller.pdf)实现对浮点数的编码。当值靠近在一起时，编码将连续值XORs连在一起让结果集变得更小。然后使用控制位存储增量，以指示XOR值中有多少前导零和尾随零。我们的实现会删除paper中描述的时间戳编码，并且仅对浮点值进行编码。
+
+##### Integers
+整数编码使用两种不同的策略，具体取决于未压缩数据中的值的范围。编码值首先使用[ZigZag编码](https://developers.google.com/protocol-buffers/docs/encoding?hl=en#signed-integers)进行编码。这样在正整数范围内交错正整数和负整数。 
+
+例如，[-2，-1,0,1]变成[3,1,0,2]。 有关详细信息，请参阅Google的[Protocol Buffers文档](https://developers.google.com/protocol-buffers/docs/encoding?hl=en#signed-integers)。 
+
+如果所有ZigZag编码值都小于（1 << 60）-1，则使用simple8b编码进行压缩。如果有值大于最大值，则所有值都将在未压缩的块中存储。如果所有值相同，则使用游程长度编码。这对于频繁不变的值非常有效。
+
+##### Booleans
+布尔值使用简单的位打包策略进行编码，其中每个布尔值使用1位。使用可变字节编码在块的开始处存储编码的布尔值的数量。
+
+##### Strings
+字符串使用[Snappy](http://google.github.io/snappy/)压缩进行编码。每个字符串连续打包，然后被压缩为一个较大的块。
+
+#### Compactions
+Compactions是将以写优化格式存储的数据迁移到更加读取优化的格式的循环过程。在分片写入时，会发生Compactions的许多阶段：
+
+* Snapshots —— Cache和WAL中的数据必须转换为TSM文件以释放WAL段使用的内存和磁盘空间。这些Compactions基于高速缓存和时间阈值进行。
+* Level Compactions —— Level Compactions（分为1-4级）随TSM文件增长而发生。TSM文件从snapshot压缩到1级文件。多个1级文件被压缩以产生2级文件。该过程继续，直到文件达到级别4和TSM文件的最大大小。除非需要运行删除，index optimization compactions或者full compactions，否则它们会进一步压缩。较低级别的压缩使用避免CPU密集型活动（如解压缩和组合块）的策略。 较高的水平（因此较不频繁）的压缩将重新组合块来完全彻底压缩它们并增加压缩比。
+* Index Optimization —— 当许多4级TSM文件累积时，内部索引变大，访问成本更高。Index Optimization compaction通过一组新的TSM文件分割series和index，将给定series的所有点排序到一个TSM文件中。 在Index Optimization之前，每个TSM文件包含大多数或全部series的点，因此每个TSM文件包含相同的series索引。Index Optimization后，每个TSM文件都包含从最小的series中得到的点，文件之间几乎没有series重叠。因此，每个TSM文件具有较小的唯一series索引，而不是完整series列表的副本。此外，特定series的所有点在TSM文件中是连续的，而不是分布在多个TSM文件中。
+* Full Compaction —— 当分片数据已经写入很长时间(也就是冷数据)，或者在分片上发生删除时，Full Compaction就会运行。Full Compaction产生最佳的TSM文件集，并包括来自Level和Index Optimization的所有优化。一旦一个shard上运行了Full Compaction，除非存储有新的写入或删除，否则不会在其上运行其他压缩。
+
+#### Writes(写)
 
