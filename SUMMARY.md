@@ -19,6 +19,5 @@
     * [存储引擎](Concepts/storage_engine.md)
 * [写入协议](Write_protocols/index.md)
     * [行协议](Write_protocols/line_protocol.md)
-    * [写入语法](Write_protocols/write_syntax.md)
 * [查询语言](Query_language/index.md)
 
