@@ -20,4 +20,5 @@
 * [写入协议](Write_protocols/index.md)
     * [行协议](Write_protocols/line_protocol.md)
 * [查询语言](Query_language/index.md)
+    * [数据查询语法](Query_language/data_exploration.md)
 
