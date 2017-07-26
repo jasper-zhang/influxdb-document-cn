@@ -451,7 +451,173 @@ time                   level description
 2015-09-15T22:42:00Z   at or greater than 9 feet
 ```
 
-### GROUP BY子句
+## GROUP BY子句
+`GROUP BY`子句后面可以跟用户指定的tags或者是一个时间间隔。
+
+### GROUP BY tags
+`GROUP BY <tag>`后面跟用户指定的tags。如果厌倦阅读，查看这个InfluxQL短片(*注意：可能看不到，请到原文处查看[https://docs.influxdata.com/influxdb/v1.3/query_language/data_exploration/#group-by-tags](https://docs.influxdata.com/influxdb/v1.3/query_language/data_exploration/#group-by-tags)*)：
+
+<iframe src="https://player.vimeo.com/video/200898048?title=0&byline=0&portrait=0" width="60%" height="250px" frameborder="0" webkitallowfullscreen mozallowfullscreen allowfullscreen></iframe>
+
+
+#### 语法
+
+```
+SELECT_clause FROM_clause [WHERE_clause] GROUP BY [* | <tag_key>[,<tag_key]]
+```
+
+#### 语法描述
+
+`GROUP BY *`  
+对结果中的所有tag作group by。
+
+`GROUP BY <tag_key>`  
+对结果按指定的tag作group by。
+
+`GROUP BY <tag_key>,<tag_key>`  
+对结果数据按多个tag作group by，其中tag key的顺序没所谓。
+
+#### 例子
+##### 例一：对单个tag作group by
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" GROUP BY "location"
+
+name: h2o_feet
+tags: location=coyote_creek
+time			               mean
+----			               ----
+1970-01-01T00:00:00Z	 5.359342451341401
+
+
+name: h2o_feet
+tags: location=santa_monica
+time			               mean
+----			               ----
+1970-01-01T00:00:00Z	 3.530863470081006
+```
+上面的查询中用到了InfluxQL中的函数来计算measurement `h2o_feet`的每`location`的`water_level`的平均值。InfluxDB返回了两个series：分别是`location`的两个值。
+
+>说明：在InfluxDB中，epoch 0(`1970-01-01T00:00:00Z`)通常用作等效的空时间戳。如果要求查询不返回时间戳，例如无限时间范围的聚合函数，InfluxDB将返回epoch 0作为时间戳。
+
+##### 例二：对多个tag作group by
+
+```
+> SELECT MEAN("index") FROM "h2o_quality" GROUP BY location,randtag
+
+name: h2o_quality
+tags: location=coyote_creek, randtag=1
+time                  mean
+----                  ----
+1970-01-01T00:00:00Z  50.69033760186263
+
+name: h2o_quality
+tags: location=coyote_creek, randtag=2
+time                   mean
+----                   ----
+1970-01-01T00:00:00Z   49.661867544220485
+
+name: h2o_quality
+tags: location=coyote_creek, randtag=3
+time                   mean
+----                   ----
+1970-01-01T00:00:00Z   49.360939907550076
+
+name: h2o_quality
+tags: location=santa_monica, randtag=1
+time                   mean
+----                   ----
+1970-01-01T00:00:00Z   49.132712456344585
+
+name: h2o_quality
+tags: location=santa_monica, randtag=2
+time                   mean
+----                   ----
+1970-01-01T00:00:00Z   50.2937984496124
+
+name: h2o_quality
+tags: location=santa_monica, randtag=3
+time                   mean
+----                   ----
+1970-01-01T00:00:00Z   49.99919903884662
+```
+上面的查询中用到了InfluxQL中的函数来计算measurement `h2o_quality`的每个`location`和`randtag`的`Index`的平均值。在`GROUP BY`子句中用逗号来分割多个tag。
+
+##### 例三：对所有tag作group by
+```
+> SELECT MEAN("index") FROM "h2o_quality" GROUP BY *
+
+name: h2o_quality
+tags: location=coyote_creek, randtag=1
+time			               mean
+----			               ----
+1970-01-01T00:00:00Z	 50.55405446521169
+
+
+name: h2o_quality
+tags: location=coyote_creek, randtag=2
+time			               mean
+----			               ----
+1970-01-01T00:00:00Z	 50.49958856271162
+
+
+name: h2o_quality
+tags: location=coyote_creek, randtag=3
+time			               mean
+----			               ----
+1970-01-01T00:00:00Z	 49.5164137518956
+
+
+name: h2o_quality
+tags: location=santa_monica, randtag=1
+time			               mean
+----			               ----
+1970-01-01T00:00:00Z	 50.43829082296367
+
+
+name: h2o_quality
+tags: location=santa_monica, randtag=2
+time			               mean
+----			               ----
+1970-01-01T00:00:00Z	 52.0688508894012
+
+
+name: h2o_quality
+tags: location=santa_monica, randtag=3
+time			               mean
+----			               ----
+1970-01-01T00:00:00Z	 49.29386362086556
+```
+上面的查询中用到了InfluxQL中的函数来计算measurement `h2o_quality`的每个tag的`Index`的平均值。
+
+请注意，查询结果与例二中的查询结果相同，其中我们明确指定了tag key `location`和`randtag`。 这是因为measurement `h2o_quality`中只有这两个tag key。
+
+### GROUP BY时间间隔
+`GROUP BY time()`返回结果按指定的时间间隔group by。
+
+#### 基本的GROUP BY time()语法
+##### 语法
+```
+SELECT <function>(<field_key>) FROM_clause WHERE <time_range> GROUP BY time(<time_interval>),[tag_key] [fill(<fill_option>)]
+```
+
+##### 基本语法描述
+基本`GROUP BY time()`查询需要`SELECT`子句中的InfluxQL函数和`WHERE`子句中的时间范围。请注意，`GROUP BY`子句必须在`WHERE`子句之后。
+
+`time(time_interval)`  
+`GROUP BY time()`语句中的`time_interval`是一个时间duration。决定了InfluxDB按什么时间间隔group by。例如：`time_interval`为`5m`则在`WHERE`子句中指定的时间范围内将查询结果分到五分钟时间组里。
+
+`fill(<fill_option>)`   
+`fill（<fill_option>）`是可选的。它会更改不含数据的时间间隔的返回值。
+
+覆盖范围：基本`GROUP BY time()`查询依赖于`time_interval`和InfluxDB的预设时间边界来确定每个时间间隔中包含的原始数据以及查询返回的时间戳。
+
+#### 基本语法示例
+
+
+
+
+
 
 
 
