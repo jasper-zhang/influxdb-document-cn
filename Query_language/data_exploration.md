@@ -1191,3 +1191,172 @@ SELECT_clause INTO <measurement_name> FROM_clause [WHERE_clause] [GROUP_BY_claus
 
 `INTO <measurement_name>`
 
+写入到特定measurement中，用CLI时，写入到用`USE`指定的数据库，保留策略为`DEFAULT`，用HTTP API时，写入到`db`参数指定的数据库，保留策略为`DEFAULT`。
+
+`INTO <database_name>.<retention_policy_name>.<measurement_name>`
+
+写入到完整指定的measurement中。
+
+`INTO <database_name>..<measurement_name>`
+
+写入到指定数据库保留策略为`DEFAULT`。
+
+`INTO <database_name>.<retention_policy_name>.:MEASUREMENT FROM /<regular_expression>/`
+
+将数据写入与`FROM`子句中正则表达式匹配的用户指定数据库和保留策略的所有measurement。 `:MEASUREMENT`是对`FROM`子句中匹配的每个measurement的反向引用。
+
+### 例子
+#### 例一：重命名数据库
+```
+> SELECT * INTO "copy_NOAA_water_database"."autogen".:MEASUREMENT FROM "NOAA_water_database"."autogen"./.*/ GROUP BY *
+
+name: result
+time written
+---- -------
+0    76290
+```
+
+在InfluxDB中直接重命名数据库是不可能的，因此`INTO`子句的常见用途是将数据从一个数据库移动到另一个数据库。 上述查询将`NOAA_water_database`和`autogen`保留策略中的所有数据写入`copy_NOAA_water_database`数据库和`autogen`保留策略中。
+
+反向引用语法（`:MEASUREMENT`）维护目标数据库中的源measurement名称。 请注意，在运行`INTO`查询之前，`copy_NOAA_water_database`数据库及其`autogen`保留策略都必须存在。
+
+ `GROUP BY *`子句将源数据库中的tag留在目标数据库中的tag中。以下查询不为tag维护series的上下文;tag将作为field存储在目标数据库（`copy_NOAA_water_database`）中：
+
+```
+SELECT * INTO "copy_NOAA_water_database"."autogen".:MEASUREMENT FROM "NOAA_water_database"."autogen"./.*/
+```
+
+当移动大量数据时，我们建议在`WHERE`子句中顺序运行不同measurement的`INTO`查询并使用时间边界。这样可以防止系统内存不足。下面的代码块提供了这些查询的示例语法：
+
+```
+SELECT * 
+INTO <destination_database>.<retention_policy_name>.<measurement_name> 
+FROM <source_database>.<retention_policy_name>.<measurement_name>
+WHERE time > now() - 100w and time < now() - 90w GROUP BY *
+
+SELECT * 
+INTO <destination_database>.<retention_policy_name>.<measurement_name> 
+FROM <source_database>.<retention_policy_name>.<measurement_name>} 
+WHERE time > now() - 90w  and time < now() - 80w GROUP BY *
+
+SELECT * 
+INTO <destination_database>.<retention_policy_name>.<measurement_name> 
+FROM <source_database>.<retention_policy_name>.<measurement_name>
+WHERE time > now() - 80w  and time < now() - 70w GROUP BY *
+```
+
+#### 例二：将查询结果写入到一个measurement
+
+```
+> SELECT "water_level" INTO "h2o_feet_copy_1" FROM "h2o_feet" WHERE "location" = 'coyote_creek'
+
+name: result
+------------
+time                   written
+1970-01-01T00:00:00Z   7604
+
+> SELECT * FROM "h2o_feet_copy_1"
+
+name: h2o_feet_copy_1
+---------------------
+time                   water_level
+2015-08-18T00:00:00Z   8.12
+[...]
+2015-09-18T16:48:00Z   4
+```
+
+该查询将其结果写入新的measurement：`h2o_feet_copy_1`。如果使用CLI，InfluxDB会将数据写入`USE`d数据库和`DEFAULT`保留策略。 如果您使用HTTP API，InfluxDB会将数据写入参数`db`指定的数据库和`rp`指定的保留策略。如果您没有设置`rp`参数，HTTP API将自动将数据写入数据库的`DEFAULT`保留策略。
+
+响应显示InfluxDB写入`h2o_feet_copy_1`的点数（7605）。 响应中的时间戳是无意义的; InfluxDB使用epoch 0（`1970-01-01T00：00：00Z`）作为空时间戳等价物。
+
+#### 例三：将查询结果写入到一个完全指定的measurement中
+```
+> SELECT "water_level" INTO "where_else"."autogen"."h2o_feet_copy_2" FROM "h2o_feet" WHERE "location" = 'coyote_creek'
+
+name: result
+------------
+time                   written
+1970-01-01T00:00:00Z   7604
+
+> SELECT * FROM "where_else"."autogen"."h2o_feet_copy_2"
+
+name: h2o_feet_copy_2
+---------------------
+time                   water_level
+2015-08-18T00:00:00Z   8.12
+[...]
+2015-09-18T16:48:00Z   4
+```
+
+#### 例四：将聚合结果写入到一个measurement中(采样)
+```
+> SELECT MEAN("water_level") INTO "all_my_averages" FROM "h2o_feet" WHERE "location" = 'coyote_creek' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m)
+
+name: result
+------------
+time                   written
+1970-01-01T00:00:00Z   3
+
+> SELECT * FROM "all_my_averages"
+
+name: all_my_averages
+---------------------
+time                   mean
+2015-08-18T00:00:00Z   8.0625
+2015-08-18T00:12:00Z   7.8245
+2015-08-18T00:24:00Z   7.5675
+```
+
+查询使用InfluxQL函数和`GROUP BY time()`子句聚合数据。它也将其结果写入`all_my_averages`measurement。
+
+该查询是采样的示例：采用更高精度的数据，将这些数据聚合到较低的精度，并将较低精度数据存储在数据库中。 采样是`INTO`子句的常见用例。
+
+#### 例五：将多个measurement的聚合结果写入到一个不同的数据库中(逆向引用采样)
+```
+> SELECT MEAN(*) INTO "where_else"."autogen".:MEASUREMENT FROM /.*/ WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:06:00Z' GROUP BY time(12m)
+
+name: result
+time                   written
+----                   -------
+1970-01-01T00:00:00Z   5
+
+> SELECT * FROM "where_else"."autogen"./.*/
+
+name: average_temperature
+time                   mean_degrees   mean_index   mean_pH   mean_water_level
+----                   ------------   ----------   -------   ----------------
+2015-08-18T00:00:00Z   78.5
+
+name: h2o_feet
+time                   mean_degrees   mean_index   mean_pH   mean_water_level
+----                   ------------   ----------   -------   ----------------
+2015-08-18T00:00:00Z                                         5.07625
+
+name: h2o_pH
+time                   mean_degrees   mean_index   mean_pH   mean_water_level
+----                   ------------   ----------   -------   ----------------
+2015-08-18T00:00:00Z                               6.75
+
+name: h2o_quality
+time                   mean_degrees   mean_index   mean_pH   mean_water_level
+----                   ------------   ----------   -------   ----------------
+2015-08-18T00:00:00Z                  51.75
+
+name: h2o_temperature
+time                   mean_degrees   mean_index   mean_pH   mean_water_level
+----                   ------------   ----------   -------   ----------------
+2015-08-18T00:00:00Z   63.75
+```
+
+查询使用InfluxQL函数和`GROUP BY time()`子句聚合数据。它会在与`FROM`子句中的正则表达式匹配的每个measurement中聚合数据，并将结果写入`where_else`数据库和`autogen`保留策略中具有相同名称的measurement中。请注意，在运行`INTO`查询之前，`where_else`和`autogen`都必须存在。
+
+该查询是使用反向引用进行下采样的示例。它从多个measurement中获取更高精度的数据，将这些数据聚合到较低的精度，并将较低精度数据存储在数据库中。使用反向引用进行下采样是`INTO`子句的常见用例。
+
+### INTO子句的共同问题
+#### 问题一：丢数据
+如果`INTO`查询在`SELECT`子句中包含tag key，则查询将当前measurement中的tag转换为目标measurement中的字段。这可能会导致InfluxDB覆盖以前由tag value区分的点。请注意，此行为不适用于使用`TOP()`或`BOTTOM()`函数的查询。
+
+要将当前measurement的tag保留在目标measurement中的tag中，`GROUP BY`相关tag key或`INTO`查询中的`GROUP BY *`。
+
+#### 问题二：使用INTO子句自动查询
+本文档中的`INTO`子句部分显示了如何使用`INTO`子句手动实现查询。 有关如何自动执行`INTO`子句查询实时数据，请参阅Continous Queries文档。除了其他用途之外，Continous Queries使采样过程自动化。
