@@ -612,14 +612,582 @@ SELECT <function>(<field_key>) FROM_clause WHERE <time_range> GROUP BY time(<tim
 
 覆盖范围：基本`GROUP BY time()`查询依赖于`time_interval`和InfluxDB的预设时间边界来确定每个时间间隔中包含的原始数据以及查询返回的时间戳。
 
-#### 基本语法示例
+##### 基本语法示例
+下面的例子用到的示例数据如下：
+
+```
+> SELECT "water_level","location" FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z'
+
+name: h2o_feet
+--------------
+time                   water_level   location
+2015-08-18T00:00:00Z   8.12          coyote_creek
+2015-08-18T00:00:00Z   2.064         santa_monica
+2015-08-18T00:06:00Z   8.005         coyote_creek
+2015-08-18T00:06:00Z   2.116         santa_monica
+2015-08-18T00:12:00Z   7.887         coyote_creek
+2015-08-18T00:12:00Z   2.028         santa_monica
+2015-08-18T00:18:00Z   7.762         coyote_creek
+2015-08-18T00:18:00Z   2.126         santa_monica
+2015-08-18T00:24:00Z   7.635         coyote_creek
+2015-08-18T00:24:00Z   2.041         santa_monica
+2015-08-18T00:30:00Z   7.5           coyote_creek
+2015-08-18T00:30:00Z   2.051         santa_monica
+```
+
+##### 例一：时间间隔为12分钟的group by
+```
+> SELECT COUNT("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+--------------
+time                   count
+2015-08-18T00:00:00Z   2
+2015-08-18T00:12:00Z   2
+2015-08-18T00:24:00Z   2
+```
+
+该查询使用InfluxQL函数来计算`location=coyote_creek`的`water_level`数，并将其分组结果分为12分钟间隔。每个时间戳的结果代表一个12分钟的间隔。 第一个时间戳记的计数涵盖大于`2015-08-18T00：00：00Z`的原始数据，但小于且不包括`2015-08-18T00：12：00Z`。第二时间戳的计数涵盖大于`2015-08-18T00：12：00Z`的原始数据，但小于且不包括`2015-08-18T00：24：00Z`。
+
+##### 例二：时间间隔为12分钟并且还对tag key作group by
+```
+> SELECT COUNT("water_level") FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m),"location"
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   count
+----                   -----
+2015-08-18T00:00:00Z   2
+2015-08-18T00:12:00Z   2
+2015-08-18T00:24:00Z   2
+
+name: h2o_feet
+tags: location=santa_monica
+time                   count
+----                   -----
+2015-08-18T00:00:00Z   2
+2015-08-18T00:12:00Z   2
+2015-08-18T00:24:00Z   2
+```
+
+该查询使用InfluxQL函数来计算`water_leval`的数量。它将结果按`location`分组并分隔12分钟。请注意，时间间隔和tag key在`GROUP BY`子句中以逗号分隔。查询返回两个measurement的结果：针对tag `location`的每个值。每个时间戳的结果代表一个12分钟的间隔。第一个时间戳记的计数涵盖大于`2015-08-18T00：00：00Z`的原始数据，但小于且不包括`2015-08-18T00：12：00Z`。第二时间戳的计数涵盖大于`2015-08-18T00：12：00Z`原始数据，但小于且不包括`2015-08-18T00：24：00Z`。
+
+##### 基本语法的共同问题
+##### 在查询结果中出现意想不到的时间戳和值
+使用基本语法，InfluxDB依赖于`GROUP BY time()`间隔和系统预设时间边界来确定每个时间间隔中包含的原始数据以及查询返回的时间戳。 在某些情况下，这可能会导致意想不到的结果。
+
+原始值：
+
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:18:00Z'
+name: h2o_feet
+--------------
+time                   water_level
+2015-08-18T00:00:00Z   8.12
+2015-08-18T00:06:00Z   8.005
+2015-08-18T00:12:00Z   7.887
+2015-08-18T00:18:00Z   7.762
+```
+
+查询和结果：
+
+以下查询涵盖12分钟的时间范围，并将结果分组为12分钟的时间间隔，但返回两个结果：
+
+```
+> SELECT COUNT("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-08-18T00:06:00Z' AND time < '2015-08-18T00:18:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+time                   count
+----                   -----
+2015-08-18T00:00:00Z   1        <----- 请注意，此时间戳记的发生在查询时间范围最小值之前
+2015-08-18T00:12:00Z   1
+```
+
+解释：
+
+InfluxDB使用独立于`WHERE`子句中任何时间条件的`GROUP BY`间隔的预设的四舍五入时间边界。当计算结果时，所有返回的数据必须在查询的显式时间范围内发生，但`GROUP BY`间隔将基于预设的时间边界。
+
+下表显示了结果中预设时间边界，相关`GROUP BY time()`间隔，包含的点以及每个`GROUP BY time()`间隔的返回时间戳。
 
 
+时间间隔序号|预设的时间边界|`GROUP BY time()`间隔|包含的数据点|返回的时间戳
+---|---|---|---|---
+1|`time >= 2015-08-18T00:00:00Z AND time < 2015-08-18T00:12:00Z`|`time >= 2015-08-18T00:06:00Z AND time < 2015-08-18T00:12:00Z`|`8.005`|`2015-08-18T00:00:00Z`
+2|`time >= 2015-08-12T00:12:00Z AND time < 2015-08-18T00:24:00Z`|`time >= 2015-08-12T00:12:00Z AND time < 2015-08-18T00:18:00Z`|`7.887`|`2015-08-18T00:12:00Z`
 
+第一个预设的12分钟时间边界从0`0:00`开始，在`00:12`之前结束。只有一个数据点（`8.005`）落在查询的第一个`GROUP BY time()`间隔内，并且在第一个时间边界。请注意，虽然返回的时间戳在查询的时间范围开始之前发生，但查询结果排除了查询时间范围之前发生的数据。
 
+第二个预设的12分钟时间边界从`00:12`开始，在`00:24`之前结束。 只有一个原点（`7.887`）都在查询的第二个`GROUP BY time()`间隔内，在该第二个时间边界内。
 
+高级`GROUP BY time()`语法允许用户移动InfluxDB预设时间边界的开始时间。高级语法部分中的例三将继续显示此处的查询; 它将预设时间边界向前移动六分钟，以便InfluxDB返回：
 
+```
+name: h2o_feet
+time                   count
+----                   -----
+2015-08-18T00:06:00Z   2
+```
 
+#### 高级`GROUP BY time()`语法
+##### 语法
 
+```
+SELECT <function>(<field_key>) FROM_clause WHERE <time_range> GROUP BY time(<time_interval>,<offset_interval>),[tag_key] [fill(<fill_option>)]
+``` 
 
+##### 高级语法描述
+高级`GROUP BY time()`查询需要`SELECT`子句中的InfluxQL函数和`WHERE`子句中的时间范围。 请注意，`GROUP BY`子句必须在`WHERE`子句之后。
+
+`time(time_interval,offset_interval)`
+
+`offset_interval`是一个持续时间。它向前或向后移动InfluxDB的预设时间界限。`offset_interval`可以为正或负。
+
+`fill(<fill_option>)`
+
+`fill(<fill_option>)`是可选的。它会更改不含数据的时间间隔的返回值。
+
+范围
+
+高级`GROUP BY time()`查询依赖于`time_interval`，`offset_interval`和InfluxDB的预设时间边界，以确定每个时间间隔中包含的原始数据以及查询返回的时间戳。
+
+##### 高级语法的例子
+下面例子都使用这份示例数据：
+
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:54:00Z'
+
+name: h2o_feet
+--------------
+time                   water_level
+2015-08-18T00:00:00Z   8.12
+2015-08-18T00:06:00Z   8.005
+2015-08-18T00:12:00Z   7.887
+2015-08-18T00:18:00Z   7.762
+2015-08-18T00:24:00Z   7.635
+2015-08-18T00:30:00Z   7.5
+2015-08-18T00:36:00Z   7.372
+2015-08-18T00:42:00Z   7.234
+2015-08-18T00:48:00Z   7.11
+2015-08-18T00:54:00Z   6.982
+```
+
+##### 例一：查询结果间隔按18分钟group by，并将预设时间边界向前移动
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-08-18T00:06:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(18m,6m)
+
+name: h2o_feet
+time                   mean
+----                   ----
+2015-08-18T00:06:00Z   7.884666666666667
+2015-08-18T00:24:00Z   7.502333333333333
+2015-08-18T00:42:00Z   7.108666666666667
+```
+
+该查询使用InfluxQL函数来计算平均`water_level`，将结果分组为18分钟的时间间隔，并将预设时间边界偏移六分钟。
+
+没有`offset_interval`的查询的时间边界和返回的时间戳符合InfluxDB的预设时间边界。我们先来看看没有`offset_interval`的结果：
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-08-18T00:06:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(18m)
+
+name: h2o_feet
+time                   mean
+----                   ----
+2015-08-18T00:00:00Z   7.946
+2015-08-18T00:18:00Z   7.6323333333333325
+2015-08-18T00:36:00Z   7.238666666666667
+2015-08-18T00:54:00Z   6.982
+```
+
+没有`offset_interval`的查询的时间边界和返回的时间戳符合InfluxDB的预设时间界限：
+
+时间间隔序号|预设的时间边界|`GROUP BY time()`间隔|包含的数据点|返回的时间戳
+---|---|---|---|---
+1|`time >= 2015-08-18T00:00:00Z AND time < 2015-08-18T00:18:00Z`|`time >= 2015-08-18T00:06:00Z AND time < 2015-08-18T00:18:00Z`|`8.005,7.887`|`2015-08-18T00:00:00Z`
+2|`time >= 2015-08-18T00:18:00Z AND time < 2015-08-18T00:36:00Z`|`同坐`|`7.762,7.635,7.5`|`2015-08-18T00:18:00Z`
+3|`time >= 2015-08-18T00:36:00Z AND time < 2015-08-18T00:54:00Z`|`同左`|`7.372,7.234,7.11`|`2015-08-18T00:36:00Z`
+4|`time >= 2015-08-18T00:54:00Z AND time < 2015-08-18T01:12:00Z`|`time = 2015-08-18T00:54:00Z`|`6.982`|`2015-08-18T00:54:00Z`
+
+第一个预设的18分钟时间边界从`00:00`开始，在`00:18`之前结束。 两个点（`8.005和7.887`）都落在第一个`GROUP BY time()`间隔内，并且在第一个时间边界。请注意，虽然返回的时间戳在查询的时间范围开始之前发生，但查询结果排除了查询时间范围之前发生的数据。
+
+第二个预设的18分钟时间边界从`00:18`开始，在`00:36`之前结束。 三个点（`7.762和7.635和7.5`）都落在第二个`GROUP BY time()`间隔内，在第二个时间边界。 在这种情况下，边界时间范围和间隔时间范围是相同的。 
+
+第四个预设的18分钟时间边界从`00:54`开始，在`1:12:00`之前结束。 一个点（`6.982`）落在第四个`GROUP BY time()`间隔内，在第四个时间边界。 
+
+具有`offset_interval`的查询的时间边界和返回的时间戳符合偏移时间边界：
+
+时间间隔序号|预设的时间边界|`GROUP BY time()`间隔|包含的数据点|返回的时间戳
+---|---|---|---|---
+1|`time >= 2015-08-18T00:06:00Z AND time < 2015-08-18T00:24:00Z`|`同左`|`8.005,7.887,7.762`|`2015-08-18T00:06:00Z`
+2|`time >= 2015-08-18T00:24:00Z AND time < 2015-08-18T00:42:00Z`|`同坐`|`7.635,7.5,7.372`|`2015-08-18T00:24:00Z`
+3|`time >= 2015-08-18T00:42:00Z AND time < 2015-08-18T01:00:00Z`|`同左`|`7.234,7.11,6.982`|`2015-08-18T00:42:00Z`
+4|`time >= 2015-08-18T01:00:00Z AND time < 2015-08-18T01:18:00Z`|`无`|`无`|`无`
+
+六分钟偏移间隔向前移动预设边界的时间范围，使得边界时间范围和相关`GROUP BY time()`间隔时间范围始终相同。使用偏移量，每个间隔对三个点执行计算，返回的时间戳与边界时间范围的开始和`GROUP BY time()`间隔时间范围的开始匹配。
+
+请注意，`offset_interval`强制第四个时间边界超出查询的时间范围，因此查询不会返回该最后一个间隔的结果。
+
+##### 例二：查询结果按12分钟间隔group by，并将预设时间界限向后移动
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-08-18T00:06:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(18m,-12m)
+
+name: h2o_feet
+time                   mean
+----                   ----
+2015-08-18T00:06:00Z   7.884666666666667
+2015-08-18T00:24:00Z   7.502333333333333
+2015-08-18T00:42:00Z   7.108666666666667
+```
+
+该查询使用InfluxQL函数来计算平均`water_level`，将结果分组为18分钟的时间间隔，并将预设时间边界偏移-12分钟。
+
+>注意：例二中的查询返回与例一中的查询相同的结果，但例二中的查询使用负的`offset_interval`而不是正的`offset_interval`。 两个查询之间没有性能差异; 在确定正负`offset_intervel`之间时，请任意选择最直观的选项。
+
+没有`offset_interval`的查询的时间边界和返回的时间戳符合InfluxDB的预设时间边界。 我们首先检查没有偏移量的结果：
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-08-18T00:06:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(18m)
+
+name: h2o_feet
+time                    mean
+----                    ----
+2015-08-18T00:00:00Z    7.946
+2015-08-18T00:18:00Z    7.6323333333333325
+2015-08-18T00:36:00Z    7.238666666666667
+2015-08-18T00:54:00Z    6.982
+```
+
+没有`offset_interval`的查询的时间边界和返回的时间戳符合InfluxDB的预设时间界限：
+
+时间间隔序号|预设的时间边界|`GROUP BY time()`间隔|包含的数据点|返回的时间戳
+---|---|---|---|---
+1|`time >= 2015-08-18T00:00:00Z AND time < 2015-08-18T00:18:00Z`|`time >= 2015-08-18T00:06:00Z AND time < 2015-08-18T00:18:00Z`|`8.005,7.887`|`2015-08-18T00:00:00Z`
+2|`time >= 2015-08-18T00:18:00Z AND time < 2015-08-18T00:36:00Z`|`同坐`|`7.762,7.635,7.5`|`2015-08-18T00:18:00Z`
+3|`time >= 2015-08-18T00:36:00Z AND time < 2015-08-18T00:54:00Z`|`同左`|`7.372,7.234,7.11`|`2015-08-18T00:36:00Z`
+4|`time >= 2015-08-18T00:54:00Z AND time < 2015-08-18T01:12:00Z`|`time = 2015-08-18T00:54:00Z`|`6.982`|`2015-08-18T00:54:00Z`
+
+第一个预设的18分钟时间边界从`00:00`开始，在`00:18`之前结束。 两个点（`8.005和7.887`）都落在第一个`GROUP BY time()`间隔内，并且在第一个时间边界。请注意，虽然返回的时间戳在查询的时间范围开始之前发生，但查询结果排除了查询时间范围之前发生的数据。
+
+第二个预设的18分钟时间边界从`00:18`开始，在`00:36`之前结束。 三个点（`7.762和7.635和7.5`）都落在第二个`GROUP BY time()`间隔内，在第二个时间边界。 在这种情况下，边界时间范围和间隔时间范围是相同的。 
+
+第四个预设的18分钟时间边界从`00:54`开始，在`1:12:00`之前结束。 一个点（`6.982`）落在第四个`GROUP BY time()`间隔内，在第四个时间边界。 
+
+具有`offset_interval`的查询的时间边界和返回的时间戳符合偏移时间边界：
+
+时间间隔序号|预设的时间边界|`GROUP BY time()`间隔|包含的数据点|返回的时间戳
+---|---|---|---|---
+1|`time >= 2015-08-17T23:48:00Z AND time < 2015-08-18T00:06:00Z`|`无`|`无`|`无`
+2|`time >= 2015-08-18T00:06:00Z AND time < 2015-08-18T00:24:00Z`|`同左`|`8.005,7.887,7.762`|`2015-08-18T00:06:00Z`
+3|`time >= 2015-08-18T00:24:00Z AND time < 2015-08-18T00:42:00Z`|`同坐`|`7.635,7.5,7.372`|`2015-08-18T00:24:00Z`
+4|`time >= 2015-08-18T00:42:00Z AND time < 2015-08-18T01:00:00Z`|`同左`|`7.234,7.11,6.982`|`2015-08-18T00:42:00Z`
+
+负十二分钟偏移间隔向后移动预设边界的时间范围，使得边界时间范围和相关`GROUP BY time()`间隔时间范围始终相同。使用偏移量，每个间隔对三个点执行计算，返回的时间戳与边界时间范围的开始和`GROUP BY time()`间隔时间范围的开始匹配。
+
+请注意，`offset_interval`强制第一个时间边界超出查询的时间范围，因此查询不会返回该最后一个间隔的结果。
+
+##### 例三：查询结果按12分钟间隔group by，并将预设时间边界向前移动
+这个例子是上面*基本语法的问题*的继续
+
+```
+> SELECT COUNT("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-08-18T00:06:00Z' AND time < '2015-08-18T00:18:00Z' GROUP BY time(12m,6m)
+
+name: h2o_feet
+time                   count
+----                   -----
+2015-08-18T00:06:00Z   2
+```
+
+该查询使用InfluxQL函数来计算平均`water_level`，将结果分组为12分钟的时间间隔，并将预设时间边界偏移六分钟。
+
+没有`offset_interval`的查询的时间边界和返回的时间戳符合InfluxDB的预设时间边界。我们先来看看没有`offset_interval`的结果：
+
+```
+> SELECT COUNT("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-08-18T00:06:00Z' AND time < '2015-08-18T00:18:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+time                   count
+----                   -----
+2015-08-18T00:00:00Z   1
+2015-08-18T00:12:00Z   1
+```
+
+没有`offset_interval`的查询的时间边界和返回的时间戳符合InfluxDB的预设时间界限：
+
+时间间隔序号|预设的时间边界|`GROUP BY time()`间隔|包含的数据点|返回的时间戳
+---|---|---|---|---
+1|`time >= 2015-08-18T00:00:00Z AND time < 2015-08-18T00:12:00Z`|`time >= 2015-08-18T00:06:00Z AND time < 2015-08-18T00:12:00Z`|`8.005`|`2015-08-18T00:00:00Z`
+2|`time >= 2015-08-12T00:12:00Z AND time < 2015-08-18T00:24:00Z`|`time >= 2015-08-12T00:12:00Z AND time < 2015-08-18T00:18:00Z`|`7.887`|`2015-08-18T00:12:00Z`
+
+第一个预设的12分钟时间边界从0`0:00`开始，在`00:12`之前结束。只有一个数据点（`8.005`）落在查询的第一个`GROUP BY time()`间隔内，并且在第一个时间边界。请注意，虽然返回的时间戳在查询的时间范围开始之前发生，但查询结果排除了查询时间范围之前发生的数据。
+
+第二个预设的12分钟时间边界从`00:12`开始，在`00:24`之前结束。 只有一个原点（`7.887`）都在查询的第二个`GROUP BY time()`间隔内，在该第二个时间边界内。
+
+具有`offset_interval`的查询的时间边界和返回的时间戳符合偏移时间边界：
+
+时间间隔序号|预设的时间边界|`GROUP BY time()`间隔|包含的数据点|返回的时间戳
+---|---|---|---|---
+1|`time >= 2015-08-18T00:06:00Z AND time < 2015-08-18T00:18:00Z`|`同左`|`8.005，7.887`|`2015-08-18T00:06:00Z`
+2|`time >= 2015-08-18T00:18:00Z AND time < 2015-08-18T00:30:00Z`|`无`|`无`|`无`
+
+六分钟偏移间隔向前移动预设边界的时间范围，使得边界时间范围和相关`GROUP BY time()`间隔时间范围始终相同。使用偏移量，每个间隔对三个点执行计算，返回的时间戳与边界时间范围的开始和`GROUP BY time()`间隔时间范围的开始匹配。
+
+请注意，`offset_interval`强制第二个时间边界超出查询的时间范围，因此查询不会返回该最后一个间隔的结果。
+
+#### GROUP BY time()加fill()
+`fill()`更改不含数据的时间间隔的返回值。 
+
+##### 语法
+
+```
+SELECT <function>(<field_key>) FROM_clause WHERE <time_range> GROUP BY time(time_interval,[<offset_interval])[,tag_key] [fill(<fill_option>)]
+```
+
+##### 语法描述
+默认情况下，没有数据的`GROUP BY time()`间隔返回为null作为输出列中的值。`fill()`更改不含数据的时间间隔返回的值。请注意，如果`GROUP(ing)BY`多个对象（例如，tag和时间间隔），那么`fill()`必须位于`GROUP BY`子句的末尾。
+
+fill的参数
+
+* 任一数值：用这个数字返回没有数据点的时间间隔
+* linear：返回没有数据的时间间隔的[线性插值](https://en.wikipedia.org/wiki/Linear_interpolation)结果。
+* none: 不返回在时间间隔里没有点的数据
+* previous：返回时间隔间的前一个间隔的数据
+
+##### 例子：
+##### 例一：fill(100)
+不带`fill(100)`:
+
+```
+> SELECT MAX("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-09-18T16:00:00Z' AND time <= '2015-09-18T16:42:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+--------------
+time                   max
+2015-09-18T16:00:00Z   3.599
+2015-09-18T16:12:00Z   3.402
+2015-09-18T16:24:00Z   3.235
+2015-09-18T16:36:00Z   
+```
+
+带`fill(100)`:
+
+```
+> SELECT MAX("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-09-18T16:00:00Z' AND time <= '2015-09-18T16:42:00Z' GROUP BY time(12m) fill(100)
+
+name: h2o_feet
+--------------
+time                   max
+2015-09-18T16:00:00Z   3.599
+2015-09-18T16:12:00Z   3.402
+2015-09-18T16:24:00Z   3.235
+2015-09-18T16:36:00Z   100
+```
+
+##### 例二：fill(linear)
+
+不带`fill(linear)`:
+
+```
+> SELECT MEAN("tadpoles") FROM "pond" WHERE time >= '2016-11-11T21:00:00Z' AND time <= '2016-11-11T22:06:00Z' GROUP BY time(12m)
+
+name: pond
+time                   mean
+----                   ----
+2016-11-11T21:00:00Z   1
+2016-11-11T21:12:00Z
+2016-11-11T21:24:00Z   3
+2016-11-11T21:36:00Z
+2016-11-11T21:48:00Z
+2016-11-11T22:00:00Z   6  
+```
+
+带`fill(linear)`:
+
+```
+> SELECT MEAN("tadpoles") FROM "pond" WHERE time >= '2016-11-11T21:00:00Z' AND time <= '2016-11-11T22:06:00Z' GROUP BY time(12m) fill(linear)
+
+name: pond
+time                   mean
+----                   ----
+2016-11-11T21:00:00Z   1
+2016-11-11T21:12:00Z   2
+2016-11-11T21:24:00Z   3
+2016-11-11T21:36:00Z   4
+2016-11-11T21:48:00Z   5
+2016-11-11T22:00:00Z   6
+```
+
+##### 例三：fill(none)
+
+不带`fill(none)`:
+
+```
+> SELECT MAX("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-09-18T16:00:00Z' AND time <= '2015-09-18T16:42:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+--------------
+time                   max
+2015-09-18T16:00:00Z   3.599
+2015-09-18T16:12:00Z   3.402
+2015-09-18T16:24:00Z   3.235
+2015-09-18T16:36:00Z 
+```
+
+带`fill(none)`:
+
+```
+> SELECT MAX("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-09-18T16:00:00Z' AND time <= '2015-09-18T16:42:00Z' GROUP BY time(12m) fill(none)
+
+name: h2o_feet
+--------------
+time                   max
+2015-09-18T16:00:00Z   3.599
+2015-09-18T16:12:00Z   3.402
+2015-09-18T16:24:00Z   3.235
+```
+
+##### 例四：fill(null)
+
+不带`fill(null)`:
+
+```
+> SELECT MAX("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-09-18T16:00:00Z' AND time <= '2015-09-18T16:42:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+--------------
+time                   max
+2015-09-18T16:00:00Z   3.599
+2015-09-18T16:12:00Z   3.402
+2015-09-18T16:24:00Z   3.235
+2015-09-18T16:36:00Z
+```
+
+带`fill(null)`:
+
+```
+> SELECT MAX("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-09-18T16:00:00Z' AND time <= '2015-09-18T16:42:00Z' GROUP BY time(12m) fill(null)
+
+name: h2o_feet
+--------------
+time                   max
+2015-09-18T16:00:00Z   3.599
+2015-09-18T16:12:00Z   3.402
+2015-09-18T16:24:00Z   3.235
+2015-09-18T16:36:00Z   
+```
+##### 例五：fill(previous)
+
+不带`fill(previous)`:
+
+```
+> SELECT MAX("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-09-18T16:00:00Z' AND time <= '2015-09-18T16:42:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+--------------
+time                   max
+2015-09-18T16:00:00Z   3.599
+2015-09-18T16:12:00Z   3.402
+2015-09-18T16:24:00Z   3.235
+2015-09-18T16:36:00Z
+```
+
+带`fill(previous)`:
+
+```
+> SELECT MAX("water_level") FROM "h2o_feet" WHERE "location"='coyote_creek' AND time >= '2015-09-18T16:00:00Z' AND time <= '2015-09-18T16:42:00Z' GROUP BY time(12m) fill(previous)
+
+name: h2o_feet
+--------------
+time                   max
+2015-09-18T16:00:00Z   3.599
+2015-09-18T16:12:00Z   3.402
+2015-09-18T16:24:00Z   3.235
+2015-09-18T16:36:00Z   3.235
+```
+
+##### `fill()`的问题
+##### 问题一：`fill()`当没有数据在查询时间范围内时
+目前，如果查询的时间范围内没有任何数据，查询会忽略`fill()`。 这是预期的行为。GitHub上的一个开放[feature request](https://github.com/influxdata/influxdb/issues/6967)建议，即使查询的时间范围不包含数据，`fill()`也会强制返回值。
+
+例子：
+
+以下查询不返回数据，因为`water_level`在查询的时间范围内没有任何点。 请注意，`fill(800)`对查询结果没有影响。
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location" = 'coyote_creek' AND time >= '2015-09-18T22:00:00Z' AND time <= '2015-09-18T22:18:00Z' GROUP BY time(12m) fill(800)
+>
+```
+##### 问题二：`fill(previous)`当前一个结果超出查询时间范围
+当前一个结果超出查询时间范围，`fill(previous)`不会填充这个时间间隔。
+
+例子：
+
+以下查询涵盖`2015-09-18T16：24：00Z`和`2015-09-18T16：54：00Z`之间的时间范围。 请注意，`fill(previos)`用`2015-09-18T16：24：00Z`的结果填写到了`2015-09-18T16：36：00Z`中。
+
+```
+> SELECT MAX("water_level") FROM "h2o_feet" WHERE location = 'coyote_creek' AND time >= '2015-09-18T16:24:00Z' AND time <= '2015-09-18T16:54:00Z' GROUP BY time(12m) fill(previous)
+
+name: h2o_feet
+--------------
+time                   max
+2015-09-18T16:24:00Z   3.235
+2015-09-18T16:36:00Z   3.235
+2015-09-18T16:48:00Z   4
+```
+
+下一个查询会缩短上一个查询的时间范围。 它现在涵盖`2015-09-18T16：36：00Z`和`2015-09-18T16：54：00Z`之间的时间。请注意，`fill(previos)`不会用`2015-09-18T16：24：00Z`的结果填写到`2015-09-18T16：36：00Z`中。因为`2015-09-18T16：24：00Z`的结果在查询的较短时间范围之外。
+
+```
+> SELECT MAX("water_level") FROM "h2o_feet" WHERE location = 'coyote_creek' AND time >= '2015-09-18T16:36:00Z' AND time <= '2015-09-18T16:54:00Z' GROUP BY time(12m) fill(previous)
+
+name: h2o_feet
+--------------
+time                   max
+2015-09-18T16:36:00Z
+2015-09-18T16:48:00Z   4
+```
+
+##### 问题三：`fill(linear)`当前一个结果超出查询时间范围
+当前一个结果超出查询时间范围，`fill(linear)`不会填充这个时间间隔。
+
+例子：
+
+以下查询涵盖`2016-11-11T21:24:00Z`和`2016-11-11T22:06:00Z`之间的时间范围。请注意，`fill(linear)`使用`2016-11-11T21：24：00Z`到`2016-11-11T22：00：00Z`时间间隔的值，填充到`2016-11-11T21：36：00Z`到`2016-11-11T21：48：00Z`时间间隔中。
+
+```
+> SELECT MEAN("tadpoles") FROM "pond" WHERE time > '2016-11-11T21:24:00Z' AND time <= '2016-11-11T22:06:00Z' GROUP BY time(12m) fill(linear)
+
+name: pond
+time                   mean
+----                   ----
+2016-11-11T21:24:00Z   3
+2016-11-11T21:36:00Z   4
+2016-11-11T21:48:00Z   5
+2016-11-11T22:00:00Z   6
+```
+
+下一个查询会缩短上一个查询的时间范围。 它现在涵盖`2016-11-11T21:36:00Z`和`2016-11-11T22:06:00Z`之间的时间。请注意，`fill()`不会使用`2016-11-11T21：24：00Z`到`2016-11-11T22：00：00Z`时间间隔的值，填充到`2016-11-11T21：36：00Z`到`2016-11-11T21：48：00Z`时间间隔中。因为`2015-09-18T16：24：00Z`的结果在查询的较短时间范围之外。
+
+```
+> SELECT MEAN("tadpoles") FROM "pond" WHERE time >= '2016-11-11T21:36:00Z' AND time <= '2016-11-11T22:06:00Z' GROUP BY time(12m) fill(linear)
+name: pond
+time                   mean
+----                   ----
+2016-11-11T21:36:00Z
+2016-11-11T21:48:00Z
+2016-11-11T22:00:00Z   6
+```
+
+## INTO子句
+`INTO`子句将查询的结果写入到用户自定义的measurement中。
+
+### 语法
+
+```
+SELECT_clause INTO <measurement_name> FROM_clause [WHERE_clause] [GROUP_BY_clause]
+```
+
+### 语法描述
+`INTO`支持多种格式的measurement。
+
+`INTO <measurement_name>`
 
