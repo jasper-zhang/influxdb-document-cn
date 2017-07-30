@@ -1360,3 +1360,53 @@ time                   mean_degrees   mean_index   mean_pH   mean_water_level
 
 #### 问题二：使用INTO子句自动查询
 本文档中的`INTO`子句部分显示了如何使用`INTO`子句手动实现查询。 有关如何自动执行`INTO`子句查询实时数据，请参阅Continous Queries文档。除了其他用途之外，Continous Queries使采样过程自动化。
+
+## ORDER BY TIME DESC
+默认情况下，InfluxDB以升序的顺序返回结果; 返回的第一个点具有最早的时间戳，返回的最后一个点具有最新的时间戳。 `ORDER BY time DESC`反转该顺序，使得InfluxDB首先返回具有最新时间戳的点。
+
+#### 语法
+
+```
+SELECT_clause [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] ORDER BY time DESC
+```
+
+#### 语法描述
+如果查询包含`GROUP BY`子句,`ORDER by time DESC`必须出现在`GROUP BY`子句之后。如果查询包含一个`WHERE`子句并没有`GROUP BY`子句，`ORDER by time DESC`必须出现在`WHERE`子句之后。
+
+#### 例子
+##### 例一：首先返回最新的点
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE "location" = 'santa_monica' ORDER BY time DESC
+
+name: h2o_feet
+time                   water_level
+----                   -----------
+2015-09-18T21:42:00Z   4.938
+2015-09-18T21:36:00Z   5.066
+[...]
+2015-08-18T00:06:00Z   2.116
+2015-08-18T00:00:00Z   2.064
+```
+
+该查询首先从`h2o_feet`measurement返回具有最新时间戳的点。没有`ORDER by time DESC`，查询将首先返回`2015-08-18T00：00：00Z`最后返回`2015-09-18T21：42：00Z`。
+
+##### 例二：首先返回最新的点并包括GROUP BY time()子句
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:42:00Z' GROUP BY time(12m) ORDER BY time DESC
+
+name: h2o_feet
+time                   mean
+----                   ----
+2015-08-18T00:36:00Z   4.6825
+2015-08-18T00:24:00Z   4.80675
+2015-08-18T00:12:00Z   4.950749999999999
+2015-08-18T00:00:00Z   5.07625
+```
+
+该查询在`GROUP BY`子句中使用InfluxQL函数和时间间隔来计算查询时间范围内每十二分钟间隔的平均`water_level`。`ORDER BY time DESC`返回最近12分钟的时间间隔。
+
+##  LIMIT和SLIMIT子句
+
+
+
