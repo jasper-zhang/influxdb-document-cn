@@ -1455,6 +1455,103 @@ time                   mean
 请注意，没有`LIMIT 2`，查询将返回每个series四个点; 在查询的时间范围内每隔十二分钟的时间间隔一个点。
 
 ## SLIMIT子句
+`SLIMIT <N>`返回指定measurement的<N>个series中的每一个点。
+### 语法
+```
+SELECT_clause [INTO_clause] FROM_clause [WHERE_clause] GROUP BY *[,time(<time_interval>)] [ORDER_BY_clause] SLIMIT <N>
+```
+
+### 语法描述
+`N`表示从指定measurement返回的序列数。如果`N`大于measurement中的series数，InfluxDB将从该measurement中返回所有series。 
+
+有一个[issue](https://github.com/influxdata/influxdb/issues/7571)，要求使用`SLIMIT`来查询`GROUP BY *`。 请注意，`SLIMIT`子句必须按照上述语法中的顺序显示。
+
+### 例子
+#### 例一：限制返回的series的数目
+```
+> SELECT "water_level" FROM "h2o_feet" GROUP BY * SLIMIT 1
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   water_level
+----                   -----
+2015-08-18T00:00:00Z   8.12
+2015-08-18T00:06:00Z   8.005
+2015-08-18T00:12:00Z   7.887
+[...]
+2015-09-18T16:12:00Z   3.402
+2015-09-18T16:18:00Z   3.314
+2015-09-18T16:24:00Z   3.235
+```
+该查询从measurement`h2o_feet`中返回一个series的所有点。
+
+#### 例二：限制返回的series的数目并且包括一个GROUP BY time()子句
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:42:00Z' GROUP BY *,time(12m) SLIMIT 1
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   mean
+----                   ----
+2015-08-18T00:00:00Z   8.0625
+2015-08-18T00:12:00Z   7.8245
+2015-08-18T00:24:00Z   7.5675
+2015-08-18T00:36:00Z   7.303
+```
+
+该查询在GROUP BY子句中使用InfluxQL函数和时间间隔来计算查询时间范围内每十二分钟间隔的平均`water_level`。`SLIMIT 1`要求返回与measurement`h2o_feet`相关联的一个series。 
+
+请注意，如果没有`SLIMIT 1`，查询将返回与`h2o_feet`相关联的两个series的结果：`location = coyote_creek`和`location = santa_monica`。
+
+## LIMIT和SLIMIT一起使用
+`SLIMIT <N>`后面跟着`LIMIT <N>`返回指定measurement的<N>个series中的<N>个数据点。
+
+### 语法
+```
+SELECT_clause [INTO_clause] FROM_clause [WHERE_clause] GROUP BY *[,time(<time_interval>)] [ORDER_BY_clause] LIMIT <N1> SLIMIT <N2>
+```
+
+### 语法描述
+`N1`指定每次measurement返回的点数。如果`N1`大于measurement的点数，InfluxDB将从该测量中返回所有点。
+
+`N2`指定从指定measurement返回的series数。如果`N2`大于measurement中series联数，InfluxDB将从该measurement中返回所有series。 
+
+有一个[issue](https://github.com/influxdata/influxdb/issues/7571)，要求需要`LIMIT`和`SLIMIT`的查询才能包含`GROUP BY *`。
+
+### 例子
+#### 例一：限制数据点数和series数的返回
+```
+> SELECT "water_level" FROM "h2o_feet" GROUP BY * LIMIT 3 SLIMIT 1
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   water_level
+----                   -----------
+2015-08-18T00:00:00Z   8.12
+2015-08-18T00:06:00Z   8.005
+2015-08-18T00:12:00Z   7.887
+```
+
+该查询从measurement`h2o_feet`中的一个series钟返回最老的三个点。
+
+#### 例二：限制数据点数和series数并且包括一个GROUP BY time()子句
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:42:00Z' GROUP BY *,time(12m) LIMIT 2 SLIMIT 1
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   mean
+----                   ----
+2015-08-18T00:00:00Z   8.0625
+2015-08-18T00:12:00Z   7.8245
+```
+
+该查询在`GROUP BY`子句中使用InfluxQL函数和时间间隔来计算查询时间范围内每十二分钟间隔的平均`water_level`。`LIMIT 2`请求两个最早的十二分钟平均值，`SLIMIT 1`请求与measurement`h2o_feet`相关联的一个series。 
+
+请注意，如果没有`LIMIT 2` `SLIMIT 1`，查询将返回与`h2o_feet`相关联的两个series中的每一个的四个点。
+
+## OFFSET和SOFFSET子句
+
 
 
 
