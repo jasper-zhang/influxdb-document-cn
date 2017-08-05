@@ -1407,6 +1407,54 @@ time                   mean
 该查询在`GROUP BY`子句中使用InfluxQL函数和时间间隔来计算查询时间范围内每十二分钟间隔的平均`water_level`。`ORDER BY time DESC`返回最近12分钟的时间间隔。
 
 ##  LIMIT和SLIMIT子句
+`LIMIT <N>`从指定的measurement中返回前`N`个数据点。
+### 语法
+
+```
+SELECT_clause [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] LIMIT <N>
+```
+
+### 语法描述
+`N`指定从指定measurement返回的点数。如果`N`大于measurement的点总数，InfluxDB返回该measurement中的所有点。请注意，`LIMIT`子句必须以上述语法中列出的顺序显示。
+
+### 例子
+#### 例一：限制返回的点数
+```
+> SELECT "water_level","location" FROM "h2o_feet" LIMIT 3
+
+name: h2o_feet
+time                   water_level   location
+----                   -----------   --------
+2015-08-18T00:00:00Z   8.12          coyote_creek
+2015-08-18T00:00:00Z   2.064         santa_monica
+2015-08-18T00:06:00Z   8.005         coyote_creek
+```
+这个查询从measurement`h2o_feet`中返回最旧的三个点。
+
+#### 例二：限制返回的点数并包含一个GROUP BY子句
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:42:00Z' GROUP BY *,time(12m) LIMIT 2
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   mean
+----                   ----
+2015-08-18T00:00:00Z   8.0625
+2015-08-18T00:12:00Z   7.8245
+
+name: h2o_feet
+tags: location=santa_monica
+time                   mean
+----                   ----
+2015-08-18T00:00:00Z   2.09
+2015-08-18T00:12:00Z   2.077
+```
+
+该查询使用InfluxQL函数和GROUP BY子句来计算每个tag以及查询时间内每隔十二分钟的间隔的平均`water_level`。 `LIMIT 2`请求两个最旧的十二分钟平均值。
+
+请注意，没有`LIMIT 2`，查询将返回每个series四个点; 在查询的时间范围内每隔十二分钟的时间间隔一个点。
+
+## SLIMIT子句
 
 
 

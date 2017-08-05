@@ -69,7 +69,7 @@ weather temperature=82 1465839830100400200
 <field_key>=<field_value>,<field_key>=<field_value>
 ```
 
-例如上面的field set由一个field组成`temperature=82`，现在加另一个tag(`bug_concentration=98`)，就变成了这样：
+例如上面的field set由一个field组成`temperature=82`，现在加另一个field(`bug_concentration=98`)，就变成了这样：
 
 ```
 weather,location=us-midwest temperature=82,bug_concentration=98 1465839830100400200
