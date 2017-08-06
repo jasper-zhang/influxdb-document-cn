@@ -1551,7 +1551,129 @@ time                   mean
 请注意，如果没有`LIMIT 2` `SLIMIT 1`，查询将返回与`h2o_feet`相关联的两个series中的每一个的四个点。
 
 ## OFFSET和SOFFSET子句
+`OFFSET`和`SOFFSET`分页和series返回。
 
+### OFFSET子句
+`OFFSET <N>`从查询结果中返回分页的N个数据点
+#### 语法
+```
+SELECT_clause [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] LIMIT_clause OFFSET <N> [SLIMIT_clause]
+```
+#### 语法描述
+`N`指定分页数。`OFFSET`子句需要一个`LIMIT`子句。使用没有`LIMIT`子句的`OFFSET`子句可能会导致不一致的查询结果。
+
+### 例子
+#### 例一：分页数据点
+```
+> SELECT "water_level","location" FROM "h2o_feet" LIMIT 3 OFFSET 3
+
+name: h2o_feet
+time                   water_level   location
+----                   -----------   --------
+2015-08-18T00:06:00Z   2.116         santa_monica
+2015-08-18T00:12:00Z   7.887         coyote_creek
+2015-08-18T00:12:00Z   2.028         santa_monica
+```
+该查询从measurement`h2o_feet`中返回第4，5，6个数据点，如果查询语句中不包括`OFFSET 3`，则会返回measurement中的第1，2，3个数据点。
+
+#### 例二：分页数据点并包括多个子句
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:42:00Z' GROUP BY *,time(12m) ORDER BY time DESC LIMIT 2 OFFSET 2 SLIMIT 1
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   mean
+----                   ----
+2015-08-18T00:12:00Z   7.8245
+2015-08-18T00:00:00Z   8.0625
+```
+
+这个例子包含的东西很多，我们一个一个来看：
+
+* `SELECT`指明InfluxQL的函数；
+* `FROM`指明单个measurement；
+* `WHERE`指明查询的时间范围；
+* `GROUP BY`将结果对所有tag作group by；
+* `GROUP BY time DESC`按照时间戳的降序返回结果；
+* `LIMIT 2`限制返回的点数为2；
+* `OFFSET 2`查询结果中不包括最开始的两个值；
+* `SLIMIT 1`限制返回的series数目为1；
+
+如果没有`OFFSET 2`，查询将会返回最先的两个点：
+
+```
+name: h2o_feet
+tags: location=coyote_creek
+time                   mean
+----                   ----
+2015-08-18T00:36:00Z   7.303
+2015-08-18T00:24:00Z   7.5675
+```
+
+### SOFFSET子句
+`SOFFSET <N>`从查询结果中返回分页的N个series
+#### 语法
+```
+SELECT_clause [INTO_clause] FROM_clause [WHERE_clause] GROUP BY *[,time(time_interval)] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] SLIMIT_clause SOFFSET <N>
+```
+#### 语法描述
+`N`指定series的分页数。`SOFFSET`子句需要一个`SLIMIT`子句。使用没有`SLIMIT`子句的`SOFFSET`子句可能会导致不一致的查询结果。
+
+>注意：如果`SOFFSET`指定的大于series的数目，则InfluxDB返回空值。
+
+### 例子
+#### 例一：分页series
+```
+> SELECT "water_level" FROM "h2o_feet" GROUP BY * SLIMIT 1 SOFFSET 1
+
+name: h2o_feet
+tags: location=santa_monica
+time                   water_level
+----                   -----------
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   2.116
+[...]
+2015-09-18T21:36:00Z   5.066
+2015-09-18T21:42:00Z   4.938
+```
+查询返回与`h2o_feet`相关的series数据，并返回tag`location = santa_monica`。没有`SOFFSET 1`，查询返回与`h2o_feet`和`location = coyote_creek`相关的series的所有数据。
+
+#### 例二：分页series并包括多个子句
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:42:00Z' GROUP BY *,time(12m) ORDER BY time DESC LIMIT 2 OFFSET 2 SLIMIT 1 SOFFSET 1
+
+name: h2o_feet
+tags: location=santa_monica
+time                   mean
+----                   ----
+2015-08-18T00:12:00Z   2.077
+2015-08-18T00:00:00Z   2.09
+```
+
+这个例子包含的东西很多，我们一个一个来看：
+
+* `SELECT`指明InfluxQL的函数；
+* `FROM`指明单个measurement；
+* `WHERE`指明查询的时间范围；
+* `GROUP BY`将结果对所有tag作group by；
+* `GROUP BY time DESC`按照时间戳的降序返回结果；
+* `LIMIT 2`限制返回的点数为2；
+* `OFFSET 2`查询结果中不包括最开始的两个值；
+* `SLIMIT 1`限制返回的series数目为1；
+* `SOFFSET 1`分页返回的series；
+
+如果没有`SOFFSET 2`，查询将会返回不同的series：
+
+```
+name: h2o_feet
+tags: location=coyote_creek
+time                   mean
+----                   ----
+2015-08-18T00:12:00Z   7.8245
+2015-08-18T00:00:00Z   8.0625
+```
+
+## Time Zone子句
 
 
 
