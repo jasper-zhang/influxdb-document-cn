@@ -1674,6 +1674,95 @@ time                   mean
 ```
 
 ## Time Zone子句
+`tz()`子句返回指定时区的UTC偏移量。
+### 语法
+```
+SELECT_clause [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause] tz('<time_zone>')
+```
 
+### 语法描述
+默认情况下，InfluxDB以UTC为单位存储并返回时间戳。 `tz()`子句包含UTC偏移量，或UTC夏令时（DST）偏移量到查询返回的时间戳中。 返回的时间戳必须是RFC3339格式，用于UTC偏移量或UTC DST才能显示。`time_zone`参数遵循[Internet Assigned Numbers Authority时区数据库](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones#List)中的TZ语法，它需要单引号。
 
+### 例子
+#### 例一：返回从UTC偏移到芝加哥时区的数据
 
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:18:00Z' tz('America/Chicago')
+
+name: h2o_feet
+time                       water_level
+----                       -----------
+2015-08-17T19:00:00-05:00  2.064
+2015-08-17T19:06:00-05:00  2.116
+2015-08-17T19:12:00-05:00  2.028
+2015-08-17T19:18:00-05:00  2.126
+```
+查询的结果包括UTC偏移-5个小时的美国芝加哥时区的时间戳。
+
+## 时间语法
+对于大多数`SELECT`语句，默认时间范围为UTC的`1677-09-21 00：12：43.145224194`到`2262-04-11T23：47：16.854775806Z`。 对于具有`GROUP BY time()`子句的`SELECT`语句，默认时间范围在UTC的`1677-09-21 00：12：43.145224194`和now()之间。以下部分详细说明了如何在`SELECT`语句的`WHERE`子句中指定替代时间范围。
+
+### 绝对时间
+用时间字符串或是epoch时间来指定绝对时间
+
+#### 语法
+```
+SELECT_clause FROM_clause WHERE time <operator> ['<rfc3339_date_time_string>' | '<rfc3339_like_date_time_string>' | <epoch_time>] [AND ['<rfc3339_date_time_string>' | '<rfc3339_like_date_time_string>' | <epoch_time>] [...]]
+```
+
+#### 语法描述
+##### 支持的操作符
+`=` 等于  
+`<>` 不等于  
+`!=` 不等于  
+`>` 大于  
+`>=` 大于等于  
+`<` 小于  
+`<=` 小于等于
+
+最近，InfluxDB不再支持在`WHERE`的绝对时间里面使用`OR`了。
+
+##### rfc3399时间字符串
+```
+'YYYY-MM-DDTHH:MM:SS.nnnnnnnnnZ'
+```
+`.nnnnnnnnn`是可选的，如果没有的话，默认是`.00000000`,rfc3399格式的时间字符串要用单引号引起来。
+
+##### epoch_time
+Epoch时间是1970年1月1日星期四00:00:00（UTC）以来所经过的时间。默认情况下，InfluxDB假定所有epoch时间戳都是纳秒。也可以在epoch时间戳的末尾包括一个表示时间精度的字符，以表示除纳秒以外的精度。
+
+##### 基本算术
+所有时间戳格式都支持基本算术。用表示时间精度的字符添加（+）或减去（-）一个时间。请注意，InfluxQL需要+或-和表示时间精度的字符之间用空格隔开。
+
+#### 例子
+##### 例一：指定一个RFC3339格式的时间间隔
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00.000000000Z' AND time <= '2015-08-18T00:12:00Z'
+
+name: h2o_feet
+time                   water_level
+----                   -----------
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   2.116
+2015-08-18T00:12:00Z   2.028
+```
+
+该查询会返回时间戳在2015年8月18日00：00：00.000000000和2015年8月18日00:12:00之间的数据。 第一个时间戳（.000000000）中的纳秒是可选的。 
+
+请注意，RFC3339日期时间字符串必须用单引号引起来。
+
+##### 例二：指定一个类似于RFC3339格式的时间间隔
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18' AND time <= '2015-08-18 00:12:00'
+
+name: h2o_feet
+time                   water_level
+----                   -----------
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   2.116
+2015-08-18T00:12:00Z   2.028
+```
+
+该查询会返回时间戳在2015年8月18日00:00:00和2015年8月18日00:12:00之间的数据。 第一个日期时间字符串不包含时间; InfluxDB会假设时间是00:00:00。
+
+##### 例三：指定epoch格式的时间间隔
