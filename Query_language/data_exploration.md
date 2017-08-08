@@ -1766,3 +1766,161 @@ time                   water_level
 该查询会返回时间戳在2015年8月18日00:00:00和2015年8月18日00:12:00之间的数据。 第一个日期时间字符串不包含时间; InfluxDB会假设时间是00:00:00。
 
 ##### 例三：指定epoch格式的时间间隔
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= 1439856000000000000 AND time <= 1439856720000000000
+
+name: h2o_feet
+time                   water_level
+----                   -----------
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   2.116
+2015-08-18T00:12:00Z   2.028
+```
+
+该查询返回的数据的时间戳为2015年8月18日00:00:00和2015年8月18日00:12:00之间。默认情况下，InfluxDB处理epoch格式下时间戳为纳秒。
+
+##### 例四：指定epoch以秒为精度的时间间隔
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= 1439856000s AND time <= 1439856720s
+
+name: h2o_feet
+time                   water_level
+----                   -----------
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   2.116
+2015-08-18T00:12:00Z   2.028
+```
+
+该查询返回的数据的时间戳为2015年8月18日00:00:00和2015年8月18日00:12:00之间。在epoch时间戳结尾处的`s`表示时间戳以秒为单位。
+
+##### 例五：对RFC3339格式的时间戳的基本计算
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE time > '2015-09-18T21:24:00Z' + 6m
+
+name: h2o_feet
+time                   water_level
+----                   -----------
+2015-09-18T21:36:00Z   5.066
+2015-09-18T21:42:00Z   4.938
+```
+
+该查询返回数据，其时间戳在2015年9月18日21时24分后六分钟。请注意，`+`和`6m`之间的空格是必需的。
+
+##### 例六：对epoch时间戳的基本计算
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE time > 24043524m - 6m
+
+name: h2o_feet
+time                   water_level
+----                   -----------
+2015-09-18T21:24:00Z   5.013
+2015-09-18T21:30:00Z   5.01
+2015-09-18T21:36:00Z   5.066
+2015-09-18T21:42:00Z   4.938
+```
+
+该查询返回数据，其时间戳在2015年9月18日21:24:00之前六分钟。请注意，`-`和`6m`之间的空格是必需的。
+
+### 相对时间
+使用`now()`查询时间戳相对于服务器当前时间戳的的数据。
+
+#### 语法
+```
+SELECT_clause FROM_clause WHERE time <operator> now() [[ - | + ] <duration_literal>] [(AND|OR) now() [...]]
+```
+#### 语法描述
+`now()`是在该服务器上执行查询时服务器的Unix时间。`-`或`+`和时间字符串之间需要空格。
+
+##### 支持的操作符
+`=` 等于  
+`<>` 不等于  
+`!=` 不等于  
+`>` 大于  
+`>=` 大于等于  
+`<` 小于  
+`<=` 小于等于
+
+##### 时间字符串
+`u`或`µ` 微秒   
+`ms`  毫秒   
+`s` 秒  
+`m` 分钟  
+`h` 小时  
+`d` 天  
+`w` 星期  
+
+#### 例子
+##### 例一：用相对时间指定时间间隔
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE time > now() - 1h
+```
+
+该查询返回过去一个小时的数据。
+
+##### 例二：用绝对和相对时间指定时间间隔
+```
+> SELECT "level description" FROM "h2o_feet" WHERE time > '2015-09-18T21:18:00Z' AND time < now() + 1000d
+
+name: h2o_feet
+time                   level description
+----                   -----------------
+2015-09-18T21:24:00Z   between 3 and 6 feet
+2015-09-18T21:30:00Z   between 3 and 6 feet
+2015-09-18T21:36:00Z   between 3 and 6 feet
+2015-09-18T21:42:00Z   between 3 and 6 feet
+```
+
+该查询返回的数据的时间戳在2015年9月18日的21:18:00到从现在之后1000天之间。
+
+### 时间语法的一些常见问题
+#### 问题一：在绝对时间中使用OR
+当前，InfluxDB不支持在绝对时间的`WHERE`子句中使用`OR`。
+#### 问题二：在有GROUP BY time()中查询发生在now()之后的数据
+大多数`SELECT`语句的默认时间范围为UTC的`1677-09-21 00：12：43.145224194`到`2262-04-11T23：47：16.854775806Z`。对于具有`GROUP BY time()`子句的`SELECT`语句，默认时间范围在UTC的`1677-09-21 00：12：43.145224194`和`now()`之间。 
+
+要查询`now()`之后发生的时间戳的数据，具有`GROUP BY time()`子句的`SELECT`语句必须在`WHERE`子句中提供一个时间的上限。
+
+##### 例子
+使用CLI写入数据库`NOAA_water_database`,且发生在`now()`之后的数据点。
+
+```
+> INSERT h2o_feet,location=santa_monica water_level=3.1 1587074400000000000
+```
+
+运行`GROUP BY time()`查询，涵盖`2015-09-18T21：30：00Z`和`now()`之间的时间戳的数据：
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location"='santa_monica' AND time >= '2015-09-18T21:30:00Z' GROUP BY time(12m) fill(none)
+
+name: h2o_feet
+time                   mean
+----                   ----
+2015-09-18T21:24:00Z   5.01
+2015-09-18T21:36:00Z   5.002
+```
+
+运行`GROUP BY time()`查询，涵盖`2015-09-18T21：30：00Z`和`now()`之后180星期之间的时间戳的数据：
+ 
+ ```
+ > SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location"='santa_monica' AND time >= '2015-09-18T21:30:00Z' AND time <= now() + 180w GROUP BY time(12m) fill(none)
+
+name: h2o_feet
+time                   mean
+----                   ----
+2015-09-18T21:24:00Z   5.01
+2015-09-18T21:36:00Z   5.002
+2020-04-16T22:00:00Z   3.1
+```
+ 
+请注意，`WHERE`子句必须提供替代上限来覆盖默认的`now()`上限。 以下查询仅将下限重置为`now()`，这样查询的时间范围在`now()`和`now()`之间：
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location"='santa_monica' AND time >= now() GROUP BY time(12m) fill(none)
+>
+```
+
+#### 问题三：配置返回的时间戳
+默认情况下，CLI以纳秒时间格式返回时间戳。使用`precision <format>`命令指定替代格式。默认情况下，HTTP API返回RFC3339格式的时间戳。使用`epoch`查询参数指定替代格式。
+
+## 正则表达式
+
