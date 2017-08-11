@@ -1900,8 +1900,8 @@ time                   mean
 ```
 
 运行`GROUP BY time()`查询，涵盖`2015-09-18T21：30：00Z`和`now()`之后180星期之间的时间戳的数据：
- 
- ```
+
+```
  > SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location"='santa_monica' AND time >= '2015-09-18T21:30:00Z' AND time <= now() + 180w GROUP BY time(12m) fill(none)
 
 name: h2o_feet
@@ -1923,4 +1923,281 @@ time                   mean
 默认情况下，CLI以纳秒时间格式返回时间戳。使用`precision <format>`命令指定替代格式。默认情况下，HTTP API返回RFC3339格式的时间戳。使用`epoch`查询参数指定替代格式。
 
 ## 正则表达式
+InluxDB支持在以下场景使用正则表达式：
 
+* 在`SELECT`中的field key和tag key；
+* 在`FROM`中的measurement
+* 在`WHERE`中的tag value和字符串类型的field value
+* 在`GROUP BY`中的tag key
+
+目前，InfluxQL不支持在`WHERE`中使用正则表达式去匹配不是字符串的field value，以及数据库名和retention policy。
+
+>注意：正则表达式比精确的字符串更加耗费计算资源; 具有正则表达式的查询比那些没有的性能要低一些。
+
+### 语法
+```
+SELECT /<regular_expression_field_key>/ FROM /<regular_expression_measurement>/ WHERE [<tag_key> <operator> /<regular_expression_tag_value>/ | <field_key> <operator> /<regular_expression_field_value>/] GROUP BY /<regular_expression_tag_key>/
+```
+
+### 语法描述
+正则表达式前后使用斜杠`/`，并且使用[Golang的正则表达式语法](http://golang.org/pkg/regexp/syntax/)。
+
+支持的操作符：
+
+`=~` 匹配  
+`!~` 不匹配
+
+### 例子：
+#### 例一：在SELECT中使用正则表达式指定field key和tag key
+
+```
+> SELECT /l/ FROM "h2o_feet" LIMIT 1
+
+name: h2o_feet
+time                   level description      location       water_level
+----                   -----------------      --------       -----------
+2015-08-18T00:00:00Z   between 6 and 9 feet   coyote_creek   8.12
+```
+
+查询选择所有包含`l`的tag key和field key。请注意，`SELECT`子句中的正则表达式必须至少匹配一个field key，以便返回与正则表达式匹配的tag key。
+
+目前，没有语法来区分`SELECT`子句中field key的正则表达式和tag key的正则表达式。不支持语法`/<regular_expression>/::[field | tag]`。
+
+#### 例二：在SELECT中使用正则表达式指定函数里面的field key
+
+```
+> SELECT DISTINCT(/level/) FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00.000000000Z' AND time <= '2015-08-18T00:12:00Z'
+
+name: h2o_feet
+time                   distinct_level description   distinct_water_level
+----                   --------------------------   --------------------
+2015-08-18T00:00:00Z   below 3 feet                 2.064
+2015-08-18T00:00:00Z                                2.116
+2015-08-18T00:00:00Z                                2.028
+```
+
+该查询使用InfluxQL函数返回每个包含`level`的field key的去重后的field value。
+
+#### 例三：在FROM中使用正则表达式指定measurement
+
+```
+> SELECT MEAN("degrees") FROM /temperature/
+
+name: average_temperature
+time			mean
+----			----
+1970-01-01T00:00:00Z   79.98472932232272
+
+name: h2o_temperature
+time			mean
+----			----
+1970-01-01T00:00:00Z   64.98872722506226
+```
+
+该查询使用InfluxQL函数计算在数据库`NOAA_water_database`中包含`temperature`的每个measurement的平均`degrees`。
+
+#### 例四：在WHERE中使用正则表达式指定tag value
+
+```
+> SELECT MEAN(water_level) FROM "h2o_feet" WHERE "location" =~ /[m]/ AND "water_level" > 3
+
+name: h2o_feet
+time                   mean
+----                   ----
+1970-01-01T00:00:00Z   4.47155532049926
+```
+
+该查询使用InfluxQL函数来计算平均水位，其中`location`的tag value包括`m`并且`water_level`大于3。 
+
+#### 例五：在WHERE中使用正则表达式指定无值的tag
+
+```
+> SELECT * FROM "h2o_feet" WHERE "location" !~ /./
+>
+```
+
+该查询从measurement`h2o_feet`中选择所有数据，其中tag `location`没有值。`NOAA_water_database`中的每个数据点都具有`location`这个tag。
+
+#### 例六：在WHERE中使用正则表达式指定有值的tag
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location" =~ /./
+
+name: h2o_feet
+time                   mean
+----                   ----
+1970-01-01T00:00:00Z   4.442107025822523
+```
+
+该查询使用InfluxQL函数计算所有`location`这个tag的数据点的平均`water_level`。
+
+#### 例七：在WHERE中使用正则表达式指定一个field value
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location" = 'santa_monica' AND "level description" =~ /between/
+
+name: h2o_feet
+time                   mean
+----                   ----
+1970-01-01T00:00:00Z   4.47155532049926
+```
+
+该查询使用InfluxQL函数计算所有字段`level description`的值含有`between`的数据点的平均`water_level`。
+
+#### 例八：在GROUP BY中使用正则表达式指定tag key
+
+```
+> SELECT FIRST("index") FROM "h2o_quality" GROUP BY /l/
+
+name: h2o_quality
+tags: location=coyote_creek
+time                   first
+----                   -----
+2015-08-18T00:00:00Z   41
+
+name: h2o_quality
+tags: location=santa_monica
+time                   first
+----                   -----
+2015-08-18T00:00:00Z   99
+```
+
+该查询使用InfluxQL函数查询每个tag key包含字母`l`的tag的第一个`index`值。
+
+## 数据类型和转换
+在`SELECT`中支持指定field的类型，以及使用`::`完成基本的类型转换。
+
+### 数据类型
+field的value支持浮点，整数，字符串和布尔型。`::`语法允许用户在查询中指定field的类型。
+
+>注意：一般来说，没有必要在SELECT子句中指定字段值类型。 在大多数情况下，InfluxDB拒绝尝试将字段值写入以前接受的不同类型的字段值的字段的任何数据。字段值类型可能在分片组之间不同。在这些情况下，可能需要在SELECT子句中指定字段值类型。
+
+#### 语法
+```
+SELECT_clause <field_key>::<type> FROM_clause
+```
+
+#### 语法描述
+`type`可以是`float`，`integer`，`string`和`boolean`。在大多数情况下，如果`field_key`没有存储指定`type`的数据，那么InfluxDB将不会返回数据。
+
+#### 例子
+```
+> SELECT "water_level"::float FROM "h2o_feet" LIMIT 4
+
+name: h2o_feet
+--------------
+time                   water_level
+2015-08-18T00:00:00Z   8.12
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   8.005
+2015-08-18T00:06:00Z   2.116
+```
+
+该查询返回field key`water_level`为浮点型的数据。
+
+### 类型转换
+`::`语法允许用户在查询中做基本的数据类型转换。目前，InfluxDB支持冲整数转到浮点，或者从浮点转到整数。
+
+#### 语法
+
+```
+SELECT_clause <field_key>::<type> FROM_clause
+```
+
+#### 语法描述
+`type`可以是`float`或者`integer`。
+
+如果查询试图把整数或者浮点数转换成字符串或者布尔型，InfluxDB将不会返回数据。
+
+#### 例子
+##### 例一：浮点数转换成整型
+
+```
+> SELECT "water_level"::integer FROM "h2o_feet" LIMIT 4
+
+name: h2o_feet
+--------------
+time                   water_level
+2015-08-18T00:00:00Z   8
+2015-08-18T00:00:00Z   2
+2015-08-18T00:06:00Z   8
+2015-08-18T00:06:00Z   2
+```
+
+##### 例一：浮点数转换成字符串(目前不支持)
+```
+> SELECT "water_level"::string FROM "h2o_feet" LIMIT 4
+>
+```
+
+所有返回为空。
+
+## 多语句
+用分号`;`分割多个`SELECT`语句。
+
+### 例子
+#### CLI:
+```
+> SELECT MEAN("water_level") FROM "h2o_feet"; SELECT "water_level" FROM "h2o_feet" LIMIT 2
+
+name: h2o_feet
+time                   mean
+----                   ----
+1970-01-01T00:00:00Z   4.442107025822522
+
+name: h2o_feet
+time                   water_level
+----                   -----------
+2015-08-18T00:00:00Z   8.12
+2015-08-18T00:00:00Z   2.064
+```
+
+#### HTTP API
+```
+{
+    "results": [
+        {
+            "statement_id": 0,
+            "series": [
+                {
+                    "name": "h2o_feet",
+                    "columns": [
+                        "time",
+                        "mean"
+                    ],
+                    "values": [
+                        [
+                            "1970-01-01T00:00:00Z",
+                            4.442107025822522
+                        ]
+                    ]
+                }
+            ]
+        },
+        {
+            "statement_id": 1,
+            "series": [
+                {
+                    "name": "h2o_feet",
+                    "columns": [
+                        "time",
+                        "water_level"
+                    ],
+                    "values": [
+                        [
+                            "2015-08-18T00:00:00Z",
+                            8.12
+                        ],
+                        [
+                            "2015-08-18T00:00:00Z",
+                            2.064
+                        ]
+                    ]
+                }
+            ]
+        }
+    ]
+}
+```
+
+## 子查询
