@@ -2201,3 +2201,169 @@ time                   water_level
 ```
 
 ## 子查询
+子查询是嵌套在另一个查询的`FROM`子句中的查询。使用子查询将查询作为条件应用于其他查询。子查询提供与嵌套函数和SQL`HAVING`子句类似的功能。
+
+### 语法
+```
+SELECT_clause FROM ( SELECT_statement ) [...]
+```
+
+### 语法描述
+InfluxDB首先执行子查询，再次执行主查询。
+
+主查询围绕子查询，至少需要`SELECT`和`FROM`子句。主查询支持本文档中列出的所有子句。 
+
+子查询显示在主查询的`FROM`子句中，它需要附加的括号。 子查询支持本文档中列出的所有子句。
+
+InfluxQL每个主要查询支持多个嵌套子查询。 多个子查询的示例语法：
+
+```
+SELECT_clause FROM ( SELECT_clause FROM ( SELECT_statement ) [...] ) [...]
+```
+
+### 例子
+#### 例一：计算多个`MAX()`值的`SUM()`
+```
+> SELECT SUM("max") FROM (SELECT MAX("water_level") FROM "h2o_feet" GROUP BY "location")
+
+name: h2o_feet
+time                   sum
+----                   ---
+1970-01-01T00:00:00Z   17.169
+```
+该查询返回`location`的每个tag值之间的最大`water_level`的总和。
+
+InfluxDB首先执行子查询; 它计算每个tag值的`water_level`的最大值：
+
+```
+> SELECT MAX("water_level") FROM "h2o_feet" GROUP BY "location"
+name: h2o_feet
+
+tags: location=coyote_creek
+time                   max
+----                   ---
+2015-08-29T07:24:00Z   9.964
+
+name: h2o_feet
+tags: location=santa_monica
+time                   max
+----                   ---
+2015-08-29T03:54:00Z   7.205
+```
+
+接下来，InfluxDB执行主查询并计算这些最大值的总和：9.964 + 7.205 = 17.169。 请注意，主查询将`max`(而不是`water_level`)指定为`SUM()`函数中的字段键。
+
+#### 例二：计算两个field的差值的`MEAN()`
+```
+> SELECT MEAN("difference") FROM (SELECT "cats" - "dogs" AS "difference" FROM "pet_daycare")
+
+name: pet_daycare
+time                   mean
+----                   ----
+1970-01-01T00:00:00Z   1.75
+```
+
+查询返回measurement`pet_daycare``cats`和`dogs`数量之间的差异的平均值。 
+
+InfluxDB首先执行子查询。 子查询计算`cats`字段中的值和`dogs`字段中的值之间的差值，并命名输出列`difference`：
+
+```
+> SELECT "cats" - "dogs" AS "difference" FROM "pet_daycare"
+
+name: pet_daycare
+time                   difference
+----                   ----------
+2017-01-20T00:55:56Z   -1
+2017-01-21T00:55:56Z   -49
+2017-01-22T00:55:56Z   66
+2017-01-23T00:55:56Z   -9
+```
+接下来，InfluxDB执行主要查询并计算这些差的平均值。请注意，主查询指定`difference`作为`MEAN()`函数中的字段键。
+
+#### 例三：计算`MEAN()`然后将这些平均值作为条件
+
+```
+> SELECT "all_the_means" FROM (SELECT MEAN("water_level") AS "all_the_means" FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m) ) WHERE "all_the_means" > 5
+
+name: h2o_feet
+time                   all_the_means
+----                   -------------
+2015-08-18T00:00:00Z   5.07625
+```
+
+该查询返回`water_level`的平均值大于5的所有平均值。 
+
+InfluxDB首先执行子查询。子查询从2015-08-18T00：00：00Z到2015-08-18T00：30：00Z计算`water_level`的`MEAN()`值，并将结果分组为12分钟。它也命名输出列`all_the_means`：
+
+```
+> SELECT MEAN("water_level") AS "all_the_means" FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+time                   all_the_means
+----                   -------------
+2015-08-18T00:00:00Z   5.07625
+2015-08-18T00:12:00Z   4.950749999999999
+2015-08-18T00:24:00Z   4.80675
+```
+接下来，InfluxDB执行主查询，只返回大于5的平均值。请注意，主查询将`all_the_means`指定为`SELECT`子句中的字段键。
+
+#### 例四：计算多个`DERIVATIVE()`值得`SUM()`
+
+```
+> SELECT SUM("water_level_derivative") AS "sum_derivative" FROM (SELECT DERIVATIVE(MEAN("water_level")) AS "water_level_derivative" FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m),"location") GROUP BY "location"
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   sum_derivative
+----                   --------------
+1970-01-01T00:00:00Z   -0.4950000000000001
+
+name: h2o_feet
+tags: location=santa_monica
+time                   sum_derivative
+----                   --------------
+1970-01-01T00:00:00Z   -0.043999999999999595
+```
+
+查询返回每个tag `location`的平均`water_level`的导数之和。 
+
+InfluxDB首先执行子查询。子查询计算以12分钟间隔获取的平均`water_level`的导数。它对`location`的每个tag value进行计算，并将输出列命名为`water_level_derivative`：
+
+```
+> SELECT DERIVATIVE(MEAN("water_level")) AS "water_level_derivative" FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m),"location"
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   water_level_derivative
+----                   ----------------------
+2015-08-18T00:12:00Z   -0.23800000000000043
+2015-08-18T00:24:00Z   -0.2569999999999997
+
+name: h2o_feet
+tags: location=santa_monica
+time                   water_level_derivative
+----                   ----------------------
+2015-08-18T00:12:00Z   -0.0129999999999999
+2015-08-18T00:24:00Z   -0.030999999999999694
+```
+
+接下来，InfluxDB执行主查询，并计算`location`的`water_level_derivative`值的总和。请注意，主要查询指定了`water_level_derivative`，而不是`water_level`或者`derivative`，作为`SUM()`函数中的字段键。
+
+### 子查询的常见问题
+#### 子查询中多个`SELECT`语句
+InfluxQL支持在每个主查询中嵌套多个子查询：
+
+```
+SELECT_clause FROM ( SELECT_clause FROM ( SELECT_statement ) [...] ) [...]
+                     ------------------   ----------------
+                         Subquery 1          Subquery 2
+```
+
+InfluxQL不支持每个子查询中多个`SELECT`语句：
+
+```
+SELECT_clause FROM (SELECT_statement; SELECT_statement) [...]
+```
+
+如果一个子查询中多个`SELECT`语句，系统会返回一个解析错误。
+
