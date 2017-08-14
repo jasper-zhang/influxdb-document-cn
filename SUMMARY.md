@@ -21,4 +21,8 @@
     * [行协议](Write_protocols/line_protocol.md)
 * [查询语言](Query_language/index.md)
     * [数据查询语法](Query_language/data_exploration.md)
+    * [schema查询语法](Query_language/schema_exploration.md)
+    * [数据库管理](Query_language/database_management.md)
+    * [连续查询](Query_language/continuous_queries.md)
+    * [函数](Query_language/functions.md)
 
