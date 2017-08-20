@@ -66,21 +66,21 @@ END
 >在8点时，`cq_basic`执行时间范围为`time => '7:00' AND time <'08：00'`的查询。
 `cq_basic`向`average_passengers`写入一个点：
 >
->```
+```
 name: average_passengers
 ------------------------
 time                   mean
 2016-08-28T07:00:00Z   7
->```
+```
 >在9点时，`cq_basic`执行时间范围为`time => '8:00' AND time <'09：00'`的查询。
 `cq_basic`向`average_passengers`写入一个点：
 >
->```
+```
 name: average_passengers
 ------------------------
 time                   mean
 2016-08-28T08:00:00Z   13.75
->```
+```
 
 结果：
 
@@ -117,7 +117,7 @@ name: average_passengers
 time                   mean
 2016-08-28T07:00:00Z   7
 ```
-在9:00`cq_basic_rp`执行时间范围为` time >='8:00' AND time <'9:00'`的查询。`cq_basic_rp`向RP为`three_weeks`的measurement`average_passengers`写入一个点：
+>在9:00`cq_basic_rp`执行时间范围为` time >='8:00' AND time <'9:00'`的查询。`cq_basic_rp`向RP为`three_weeks`的measurement`average_passengers`写入一个点：
 >
 ```
 name: average_passengers
@@ -163,7 +163,7 @@ name: bus_data
 time                   mean_complaints   mean_passengers
 2016-08-28T07:00:00Z   9                 6.5
 ```
-8点时，`cq_basic_br`执行时间范围为 `time >='7:30' AND time <'8:00'`的查询。`cq_basic_br`向`downsampled_transportation`数据库中measurement为`bus_data`写入两个点：
+>8点时，`cq_basic_br`执行时间范围为 `time >='7:30' AND time <'8:00'`的查询。`cq_basic_br`向`downsampled_transportation`数据库中measurement为`bus_data`写入两个点：
 >
 ```
 name: bus_data
@@ -174,7 +174,7 @@ time                   mean_complaints   mean_passengers
 >
 […]  
 >
-9点时，`cq_basic_br`执行时间范围为 `time >='8:30' AND time <'9:00'`的查询。`cq_basic_br`向`downsampled_transportation`数据库中measurement为`bus_data`写入两个点：
+>9点时，`cq_basic_br`执行时间范围为 `time >='8:30' AND time <'9:00'`的查询。`cq_basic_br`向`downsampled_transportation`数据库中measurement为`bus_data`写入两个点：
 >
 ```
 name: bus_data
@@ -223,7 +223,7 @@ name: average_passengers
 time                   mean
 2016-08-28T07:15:00Z   7.75
 ```
-在9:15`cq_basic_offset`执行时间范围`time> ='8:15'AND time <'9:15'`的查询。
+>在9:15`cq_basic_offset`执行时间范围`time> ='8:15'AND time <'9:15'`的查询。
 `cq_basic_offset`向`average_passengers`写入一个点：
 >
 ```
