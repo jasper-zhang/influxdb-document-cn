@@ -66,21 +66,21 @@ END
 >在8点时，`cq_basic`执行时间范围为`time => '7:00' AND time <'08：00'`的查询。
 `cq_basic`向`average_passengers`写入一个点：
 >
-```
+>```
 name: average_passengers
 ------------------------
 time                   mean
 2016-08-28T07:00:00Z   7
-```
-在9点时，`cq_basic`执行时间范围为`time => '8:00' AND time <'09：00'`的查询。
+>```
+>在9点时，`cq_basic`执行时间范围为`time => '8:00' AND time <'09：00'`的查询。
 `cq_basic`向`average_passengers`写入一个点：
 >
-```
+>```
 name: average_passengers
 ------------------------
 time                   mean
 2016-08-28T08:00:00Z   13.75
-```
+>```
 
 结果：
 
@@ -261,6 +261,17 @@ CQ对实时数据进行操作，即具有相对于`now()`发生的时间戳的�
 
 在CQ中包含`GROUP BY *`，以保留目的measurement中的tag。
 
-
+### 高级语法
+```
+CREATE CONTINUOUS QUERY <cq_name> ON <database_name>
+RESAMPLE EVERY <interval> FOR <interval>
+BEGIN
+  <cq_query>
+END
+```
+#### 高级语法描述
+##### cq_query
+同上面基本语法里面的`cq_query`。
+##### 运行时间点以及覆盖的时间范围
 
 
