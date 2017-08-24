@@ -172,7 +172,7 @@ time                   mean_complaints   mean_passengers
 2016-08-28T07:30:00Z   9                 7.5
 ```
 >
-[…]  
+>[…]  
 >
 >9点时，`cq_basic_br`执行时间范围为 `time >='8:30' AND time <'9:00'`的查询。`cq_basic_br`向`downsampled_transportation`数据库中measurement为`bus_data`写入两个点：
 >
@@ -273,5 +273,154 @@ END
 ##### cq_query
 同上面基本语法里面的`cq_query`。
 ##### 运行时间点以及覆盖的时间范围
+CQs对实时数据进行操作。使用高级语法，CQ使用本地服务器的时间戳以及`RESAMPLE`子句中的信息和InfluxDB的预设时间边界来确定执行时间和查询中涵盖的时间范围。 
+
+CQs以与`RESAMPLE`子句中的`EVERY`间隔相同的间隔执行，并且它们在InfluxDB的预设时间边界开始时运行。如果`EVERY`间隔是两个小时，InfluxDB将在每两小时的开始执行CQ。
+
+当CQ执行时，它运行一个单一的查询，在`now()`和`now()`减去`RESAMPLE`子句中的`FOR`间隔之间的时间范围。如果`FOR`间隔为两个小时，当前时间为17:00，查询的时间间隔为15:00至16:59999999999。
+
+`EVERY`间隔和`FOR`间隔都接受时间字符串。`RESAMPLE`子句适用于同时配置`EVERY`和`FOR`,或者是其中之一。如果没有提供`EVERY`间隔或`FOR`间隔，则CQ默认为相关为基本语法。
+
+#### 高级语法例子
+示例数据如下：
+
+```
+name: bus_data
+--------------
+time                   passengers
+2016-08-28T06:30:00Z   2
+2016-08-28T06:45:00Z   4
+2016-08-28T07:00:00Z   5
+2016-08-28T07:15:00Z   8
+2016-08-28T07:30:00Z   8
+2016-08-28T07:45:00Z   7
+2016-08-28T08:00:00Z   8
+2016-08-28T08:15:00Z   15
+2016-08-28T08:30:00Z   15
+2016-08-28T08:45:00Z   17
+2016-08-28T09:00:00Z   20
+```
+
+##### 例一：配置执行间隔
+在`RESAMPLE`中使用`EVERY`来指明CQ的执行间隔。
+
+```
+CREATE CONTINUOUS QUERY "cq_advanced_every" ON "transportation"
+RESAMPLE EVERY 30m
+BEGIN
+  SELECT mean("passengers") INTO "average_passengers" FROM "bus_data" GROUP BY time(1h)
+END
+```
+
+`cq_advanced_every`从`bus_data`中计算`passengers`的一小时平均值，并将结果存储在数据库`transportation`中的`average_passengers`中。
+
+`cq_advanced_every`以30分钟的间隔执行，间隔与`EVERY`间隔相同。每30分钟，`cq_advanced_every`运行一个查询，覆盖当前时间段的时间范围，即与`now()`交叉的一小时时间段。
+
+下面是2016年8月28日上午的日志输出：
+
+>在8:00`cq_basic_every`执行时间范围`time> ='7:00'AND time <'8:00'`的查询。
+`cq_basic_every`向`average_passengers`写入一个点：
+>
+```
+name: average_passengers
+------------------------
+time                   mean
+2016-08-28T07:00:00Z   7
+```
+>在8:30`cq_basic_every`执行时间范围`time> ='8:00'AND time <'9:00'`的查询。
+`cq_basic_every`向`average_passengers`写入一个点：
+>
+```
+name: average_passengers
+------------------------
+time                   mean
+2016-08-28T08:00:00Z   12.6667
+```
+>在9:00`cq_basic_every`执行时间范围`time> ='8:00'AND time <'9:00'`的查询。
+`cq_basic_every`向`average_passengers`写入一个点：
+>
+```
+name: average_passengers
+------------------------
+time                   mean
+2016-08-28T08:00:00Z   13.75
+```
+
+结果为：
+
+```
+> SELECT * FROM "average_passengers"
+name: average_passengers
+------------------------
+time                   mean
+2016-08-28T07:00:00Z   7
+2016-08-28T08:00:00Z   13.75
+```
+
+请注意，`cq_advanced_every`计算8:00时间间隔的结果两次。第一次，它运行在8:30，计算每个可用数据点在8:00和9:00（8,15和15）之间的平均值。 第二次，它运行在9:00，计算每个可用数据点在8:00和9:00（8,15,15和17）之间的平均值。由于InfluxDB处理重复点的方式，所以第二个结果只是覆盖第一个结果。
+
+##### 例二：配置CQ的重采样时间范围
+在`RESAMPLE`中使用`FOR`来指明CQ的时间间隔的长度。
+
+```
+CREATE CONTINUOUS QUERY "cq_advanced_for" ON "transportation"
+RESAMPLE FOR 1h
+BEGIN
+  SELECT mean("passengers") INTO "average_passengers" FROM "bus_data" GROUP BY time(30m)
+END
+```
+
+`cq_advanced_for`从`bus_data`中计算`passengers`的30分钟平均值，并将结果存储在数据库`transportation`中的`average_passengers`中。
+
+`cq_advanced_for`以30分钟的间隔执行，间隔与`GROUP BY time()`间隔相同。每30分钟，`cq_advanced_for`运行一个查询，覆盖时间段为`now()`和`now()`减去`FOR`中的间隔，即是`now()`和`now()`之前的一个小时之间的时间范围。
 
 
+下面是2016年8月28日上午的日志输出：
+
+>在8:00`cq_basic_for`执行时间范围`time> ='7:00'AND time <'8:00'`的查询。
+`cq_basic_for`向`average_passengers`写入一个点：
+>
+```
+name: average_passengers
+------------------------
+time                   mean
+2016-08-28T07:00:00Z   6.5
+2016-08-28T07:30:00Z   7.5
+```
+>在8:30`cq_basic_for`执行时间范围`time> ='7:30'AND time <'8:30'`的查询。
+`cq_basic_for`向`average_passengers`写入一个点：
+>
+```
+name: average_passengers
+------------------------
+time                   mean
+2016-08-28T07:30:00Z   7.5
+2016-08-28T08:00:00Z   11.5
+```
+>在9:00`cq_basic_for`执行时间范围`time> ='8:00'AND time <'9:00'`的查询。
+`cq_basic_for`向`average_passengers`写入一个点：
+>
+```
+name: average_passengers
+------------------------
+time                   mean
+2016-08-28T08:00:00Z   11.5
+2016-08-28T08:30:00Z   16
+```
+
+请注意，`cq_advanced_for`会计算每次间隔两次的结果。CQ在8:00和8:30计算7:30的平均值，在8:30和9:00计算8:00的平均值。
+
+结果为：
+
+```
+> SELECT * FROM "average_passengers"
+name: average_passengers
+------------------------
+time                   mean
+2016-08-28T07:00:00Z   6.5
+2016-08-28T07:30:00Z   7.5
+2016-08-28T08:00:00Z   11.5
+2016-08-28T08:30:00Z   16
+```
+
+##### 例三：配置执行间隔和CQ时间范围
