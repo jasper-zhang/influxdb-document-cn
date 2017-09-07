@@ -126,3 +126,49 @@ time                   count
 2015-09-18T21:48:00Z   800000
 ```
 
+### DISTINCT()
+返回field value的不同值列表。
+
+#### 语法
+```
+SELECT DISTINCT( [ * | <field_key> | /<regular_expression>/ ] ) FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+
+#### 嵌套语法
+```
+SELECT COUNT(DISTINCT( [ * | <field_key> | /<regular_expression>/ ] )) [...]
+```
+
+#### 语法描述
+`DISTINCT(field_key)`
+
+返回field key对应的不同field values。
+
+`DISTINCT(/regular_expression/)`
+
+返回匹配正则表达式的field key对应的不同field values。
+
+`DISTINCT(*)`
+
+返回measurement中的每个field key对应的不同field value。
+
+`DISTINCT()`支持所有数据类型的field value，InfluxQL支持`COUNT()`嵌套`DISTINCT()`。
+
+#### 例子
+##### 例一：列出一个field key的不同的field value
+
+```
+> SELECT DISTINCT("level description") FROM "h2o_feet"
+
+name: h2o_feet
+time                   distinct
+----                   --------
+1970-01-01T00:00:00Z   between 6 and 9 feet
+1970-01-01T00:00:00Z   below 3 feet
+1970-01-01T00:00:00Z   between 3 and 6 feet
+1970-01-01T00:00:00Z   at or greater than 9 feet
+```
+
+查询返回`level description`的所有的不同的值。
+
+##### 例二：列出一个measurement中每个field key的不同值
