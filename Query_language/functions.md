@@ -172,3 +172,97 @@ time                   distinct
 查询返回`level description`的所有的不同的值。
 
 ##### 例二：列出一个measurement中每个field key的不同值
+```
+> SELECT DISTINCT(*) FROM "h2o_feet"
+
+name: h2o_feet
+time                   distinct_level description   distinct_water_level
+----                   --------------------------   --------------------
+1970-01-01T00:00:00Z   between 6 and 9 feet         8.12
+1970-01-01T00:00:00Z   between 3 and 6 feet         8.005
+1970-01-01T00:00:00Z   at or greater than 9 feet    7.887
+1970-01-01T00:00:00Z   below 3 feet                 7.762
+[...]
+```
+
+查询返回`h2o_feet`中每个字段的唯一字段值的列表。`h2o_feet`有两个字段：`description`和`water_level`。
+
+##### 例三：列出匹配正则表达式的field的不同field value
+```
+> SELECT DISTINCT(/description/) FROM "h2o_feet"
+
+name: h2o_feet
+time                   distinct_level description
+----                   --------------------------
+1970-01-01T00:00:00Z   below 3 feet
+1970-01-01T00:00:00Z   between 6 and 9 feet
+1970-01-01T00:00:00Z   between 3 and 6 feet
+1970-01-01T00:00:00Z   at or greater than 9 feet
+```
+
+查询返回`h2o_feet`中含有`description`的字段的唯一字段值的列表。
+
+##### 例四：列出包含多个子句的field key关联的不同值得列表
+```
+>  SELECT DISTINCT("level description") FROM "h2o_feet" WHERE time >= '2015-08-17T23:48:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(12m),* SLIMIT 1
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   distinct
+----                   --------
+2015-08-18T00:00:00Z   between 6 and 9 feet
+2015-08-18T00:12:00Z   between 6 and 9 feet
+2015-08-18T00:24:00Z   between 6 and 9 feet
+2015-08-18T00:36:00Z   between 6 and 9 feet
+2015-08-18T00:48:00Z   between 6 and 9 feet
+```
+
+该查询返回`level description`字段键中不同字段值的列表。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组。查询限制返回一个series。
+
+##### 例五：对一个字段的不同值作计数
+```
+> SELECT COUNT(DISTINCT("level description")) FROM "h2o_feet"
+
+name: h2o_feet
+time                   count
+----                   -----
+1970-01-01T00:00:00Z   4
+```
+
+查询返回`h2o_feet`这个measurement中字段`level description`的不同值的数目。
+
+#### DISTINCT()的常见问题
+##### 问题一：DISTINCT()和INTO子句
+使用`DISTINCT()`与`INTO`子句可能导致InfluxDB覆盖目标measurement中的点。`DISTINCT()`通常返回多个具有相同时间戳的结果; InfluxDB假设具有相同series的点，时间戳是重复的点，并且仅覆盖目的measurement中最近一个点的任何重复点。
+
+例如
+
+下面的代码中的第一个查询使用`DISTINCT()`函数，返回四个结果。请注意，每个结果具有相同的时间戳。第二个查询将`INTO`子句添加到初始查询中，并将查询结果写入measurement`distincts`中。代码中的最后一个查询选择`distincts`中的所有数据。最后一个查询返回一个点，因为四个初始结果是重复点; 它们属于同一series，具有相同的时间戳。 当系统遇到重复点时，它会用最近一个点覆盖上一个点。
+
+```
+>  SELECT DISTINCT("level description") FROM "h2o_feet"
+
+name: h2o_feet
+time                   distinct
+----                   --------
+1970-01-01T00:00:00Z   below 3 feet
+1970-01-01T00:00:00Z   between 6 and 9 feet
+1970-01-01T00:00:00Z   between 3 and 6 feet
+1970-01-01T00:00:00Z   at or greater than 9 feet
+
+>  SELECT DISTINCT("level description") INTO "distincts" FROM "h2o_feet"
+
+name: result
+time                   written
+----                   -------
+1970-01-01T00:00:00Z   4
+
+> SELECT * FROM "distincts"
+
+name: distincts
+time                   distinct
+----                   --------
+1970-01-01T00:00:00Z   at or greater than 9 feet
+```
+
+### INTEGRAL()
