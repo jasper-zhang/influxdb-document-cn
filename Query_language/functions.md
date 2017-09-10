@@ -266,3 +266,104 @@ time                   distinct
 ```
 
 ### INTEGRAL()
+返回字段曲线下的面积，即是积分。
+#### 语法
+```
+SELECT INTEGRAL( [ * | <field_key> | /<regular_expression>/ ] [ , <unit> ]  ) [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+
+#### 语法描述
+InfluxDB计算字段曲线下的面积，并将这些结果转换为每`unit`的总和面积。`unit`参数是一个整数，后跟一个时间字符串，它是可选的。如果查询未指定单位，则单位默认为1秒（`1s`）。
+
+`INTEGRAL(field_key)`
+
+返回field key关联的值之下的面积。
+
+`INTEGRAL(/regular_expression/)`
+
+返回满足正则表达式的每个field key关联的值之下的面积。
+
+`INTEGRAL(*)`
+
+返回measurement中每个field key关联的值之下的面积。
+
+`INTEGRAL()`不支持`fill()`，`INTEGRAL()`支持int64和float64两个数据类型。
+
+#### 例子
+下面的五个例子，使用数据库`NOAA_water_database`中的数据：
+
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z'
+
+name: h2o_feet
+time                   water_level
+----                   -----------
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   2.116
+2015-08-18T00:12:00Z   2.028
+2015-08-18T00:18:00Z   2.126
+2015-08-18T00:24:00Z   2.041
+2015-08-18T00:30:00Z   2.051
+```
+
+##### 例一：计算指定的field key的值得积分
+```
+> SELECT INTEGRAL("water_level") FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z'
+
+name: h2o_feet
+time                 integral
+----                 --------
+1970-01-01T00:00:00Z 3732.66
+```
+
+该查询返回`h2o_feet`中的字段`water_level`的曲线下的面积（以秒为单位）。
+
+##### 例二：计算指定的field key和时间单位的值得积分
+```
+> SELECT INTEGRAL("water_level",1m) FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z'
+
+name: h2o_feet
+time                 integral
+----                 --------
+1970-01-01T00:00:00Z 62.211
+```
+
+该查询返回`h2o_feet`中的字段`water_level`的曲线下的面积（以分钟为单位）。
+
+##### 例三：计算measurement中每个field key在指定时间单位的值得积分
+```
+> SELECT INTEGRAL(*,1m) FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z'
+
+name: h2o_feet
+time                 integral_water_level
+----                 --------------------
+1970-01-01T00:00:00Z 62.211
+```
+
+查询返回measurement`h2o_feet`中存储的每个数值字段相关的字段值的曲线下面积（以分钟为单位）。 `h2o_feet`的数值字段为`water_level`。
+
+##### 例四：计算measurement中匹配正则表达式的field key在指定时间单位的值得积分
+```
+> SELECT INTEGRAL(/water/,1m) FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z'
+
+name: h2o_feet
+time                 integral_water_level
+----                 --------------------
+1970-01-0
+```
+
+查询返回field key包括单词`water`的每个数值类型的字段相关联的字段值的曲线下的区域（以分钟为单位）。
+
+##### 例五：在含有多个子句中计算指定字段的积分
+```
+> SELECT INTEGRAL("water_level",1m) FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m) LIMIT 1
+
+name: h2o_feet
+time                 integral
+----                 --------
+2015-08-18T00:00:00Z 24.972
+```
+
+查询返回与字段`water_level`相关联的字段值的曲线下面积（以分钟为单位）。 它涵盖`2015-08-18T00：00：00Z`和`2015-08-18T00：30：00Z`之间的时间段，分组结果间隔12分钟，并将结果数量限制为1。
+
+### MEAN()
