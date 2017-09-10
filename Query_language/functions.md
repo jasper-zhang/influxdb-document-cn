@@ -524,3 +524,79 @@ time                   median
 查询返回字段`water_level`中的值的中位数。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组。该查询用`700`填充空时间间隔，并将点数和series分别限制到7和1，并将series的返回偏移1。
 
 ### MODE()
+返回字段中出现频率最高的值。
+#### 语法
+```
+SELECT MODE( [ * | <field_key> | /<regular_expression>/ ] ) [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 语法描述
+
+`MODE(field_key)`
+
+返回field key关联的值的出现频率最高的值。
+
+`MODE(/regular_expression/)`
+
+返回满足正则表达式的每个field key关联的值的出现频率最高的值。
+
+`MODE(*)`
+
+返回measurement中每个field key关联的值的出现频率最高的值。
+
+`MODE()`支持所有数据类型。
+
+>注意：`MODE()`如果最多出现次数有两个或多个值，则返回具有最早时间戳的字段值。
+
+#### 例子
+##### 例一：计算指定字段的最常出现的值
+```
+> SELECT MODE("level description") FROM "h2o_feet"
+
+name: h2o_feet
+time                   mode
+----                   ----
+1970-01-01T00:00:00Z   between 3 and 6 feet
+```
+
+该查询返回measurement`h2o_feet`的字段`level description`的最常出现的值。
+
+##### 例二：计算measurement中每个字段最常出现的值
+```
+> SELECT MODE(*) FROM "h2o_feet"
+
+name: h2o_feet
+time                   mode_level description   mode_water_level
+----                   ----------------------   ----------------
+1970-01-01T00:00:00Z   between 3 and 6 feet     2.69
+```
+
+查询返回在`h2o_feet`中数值类型的每个字段的最常出现的值。`h2o_feet`有两个字段：`water_level`和`level description`。
+
+##### 例三：计算满足正则表达式的字段的最常出现的值
+```
+> SELECT MODE(/water/) FROM "h2o_feet"
+
+name: h2o_feet
+time                   mode_water_level
+----                   ----------------
+1970-01-01T00:00:00Z   2.69
+```
+
+查询返回在`h2o_feet`中字段中含有`water`的字段的最常出现的值。
+
+##### 例四：计算含有多个子句字段的最常出现的值
+```
+> SELECT MODE("level description") FROM "h2o_feet" WHERE time >= '2015-08-17T23:48:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(12m),* LIMIT 3 SLIMIT 1 SOFFSET 1
+
+name: h2o_feet
+tags: location=santa_monica
+time                   mode
+----                   ----
+2015-08-17T23:48:00Z
+2015-08-18T00:00:00Z   below 3 feet
+2015-08-18T00:12:00Z   below 3 feet
+```
+
+查询返回字段`water_level`中的值的最常出现的值。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组。，并将点数和series分别限制到3和1，并将series的返回偏移1。
+
+### SPREAD()
