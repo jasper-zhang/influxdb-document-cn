@@ -444,3 +444,83 @@ time                   mean
 查询返回字段`water_level`中的值的平均值。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组。该查询用`9.01`填充空时间间隔，并将点数和series分别限制到7和1。
 
 ### MEDIAN()
+返回排好序的字段的中位数。
+#### 语法
+```
+SELECT MEDIAN( [ * | <field_key> | /<regular_expression>/ ] ) [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 语法描述
+
+`MEDIAN(field_key)`
+
+返回field key关联的值的中位数。
+
+`MEDIAN(/regular_expression/)`
+
+返回满足正则表达式的每个field key关联的值的中位数。
+
+`MEDIAN(*)`
+
+返回measurement中每个field key关联的值的中位数。
+
+`MEDIAN()`支持int64和float64两个数据类型。
+
+>注意：`MEDIAN()`近似于`PERCENTILE（field_key，50）`，除了如果该字段包含偶数个值，`MEDIAN()`返回两个中间字段值的平均值之外。
+
+
+#### 例子
+##### 例一：计算指定字段的中位数
+```
+> SELECT MEDIAN("water_level") FROM "h2o_feet"
+
+name: h2o_feet
+time                   median
+----                   ------
+1970-01-01T00:00:00Z   4.124
+```
+
+该查询返回measurement`h2o_feet`的字段`water_level`的中位数。
+
+##### 例二：计算measurement中每个字段的中位数
+```
+> SELECT MEDIAN(*) FROM "h2o_feet"
+
+name: h2o_feet
+time                   median_water_level
+----                   ------------------
+1970-01-01T00:00:00Z   4.124
+```
+
+查询返回在`h2o_feet`中数值类型的每个字段的中位数。`h2o_feet`有一个数值字段：`water_level`。
+
+##### 例三：计算满足正则表达式的字段的中位数
+```
+> SELECT MEDIAN(/water/) FROM "h2o_feet"
+
+name: h2o_feet
+time                   median_water_level
+----                   ------------------
+1970-01-01T00:00:00Z   4.124
+```
+
+查询返回在`h2o_feet`中字段中含有`water`的数值类型字段的中位数。
+
+##### 例四：计算含有多个子句字段的中位数
+```
+> SELECT MEDIAN("water_level") FROM "h2o_feet" WHERE time >= '2015-08-17T23:48:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(12m),* fill(700) LIMIT 7 SLIMIT 1 SOFFSET 1
+
+name: h2o_feet
+tags: location=santa_monica
+time                   median
+----                   ------
+2015-08-17T23:48:00Z   700
+2015-08-18T00:00:00Z   2.09
+2015-08-18T00:12:00Z   2.077
+2015-08-18T00:24:00Z   2.0460000000000003
+2015-08-18T00:36:00Z   2.0620000000000003
+2015-08-18T00:48:00Z   700
+```
+
+查询返回字段`water_level`中的值的中位数。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组。该查询用`700`填充空时间间隔，并将点数和series分别限制到7和1，并将series的返回偏移1。
+
+### MODE()
