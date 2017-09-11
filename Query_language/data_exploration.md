@@ -1455,7 +1455,7 @@ time                   mean
 请注意，没有`LIMIT 2`，查询将返回每个series四个点; 在查询的时间范围内每隔十二分钟的时间间隔一个点。
 
 ## SLIMIT子句
-`SLIMIT <N>`返回指定measurement的<N>个series中的每一个点。
+`SLIMIT <N>`返回指定measurement的前<N>个series中的每一个点。
 ### 语法
 ```
 SELECT_clause [INTO_clause] FROM_clause [WHERE_clause] GROUP BY *[,time(<time_interval>)] [ORDER_BY_clause] SLIMIT <N>
