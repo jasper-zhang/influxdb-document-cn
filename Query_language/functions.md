@@ -600,3 +600,150 @@ time                   mode
 查询返回字段`water_level`中的值的最常出现的值。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组。，并将点数和series分别限制到3和1，并将series的返回偏移1。
 
 ### SPREAD()
+返回字段中最大和最小值的差值。
+#### 语法
+```
+SELECT SPREAD( [ * | <field_key> | /<regular_expression>/ ] ) [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 语法描述
+
+`SPREAD(field_key)`
+
+返回field key最大和最小值的差值。
+
+`SPREAD(/regular_expression/)`
+
+返回满足正则表达式的每个field key最大和最小值的差值。
+
+`SPREAD(*)`
+
+返回measurement中每个field key最大和最小值的差值。
+
+`SPREAD()`支持所有的数值类型的field。
+
+#### 例子
+##### 例一：计算指定字段最大和最小值的差值
+```
+> SELECT SPREAD("water_level") FROM "h2o_feet"
+
+name: h2o_feet
+time                   spread
+----                   ------
+1970-01-01T00:00:00Z   10.574
+```
+
+该查询返回measurement`h2o_feet`的字段`water_level`的最大和最小值的差值。
+
+##### 例二：计算measurement中每个字段最大和最小值的差值
+```
+> SELECT SPREAD(*) FROM "h2o_feet"
+
+name: h2o_feet
+time                   spread_water_level
+----                   ------------------
+1970-01-01T00:00:00Z   10.574
+```
+
+查询返回在`h2o_feet`中数值类型的每个数值字段的最大和最小值的差值。`h2o_feet`有一个数值字段：`water_level`。
+
+##### 例三：计算满足正则表达式的字段最大和最小值的差值
+```
+> SELECT SPREAD(/water/) FROM "h2o_feet"
+
+name: h2o_feet
+time                   spread_water_level
+----                   ------------------
+1970-01-01T00:00:00Z   10.574
+```
+
+查询返回在`h2o_feet`中字段中含有`water`的所有数值字段的最大和最小值的差值。
+
+##### 例四：计算含有多个子句字段最大和最小值的差值
+```
+> SELECT SPREAD("water_level") FROM "h2o_feet" WHERE time >= '2015-08-17T23:48:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(12m),* fill(18) LIMIT 3 SLIMIT 1 SOFFSET 1
+
+name: h2o_feet
+tags: location=santa_monica
+time                   spread
+----                   ------
+2015-08-17T23:48:00Z   18
+2015-08-18T00:00:00Z   0.052000000000000046
+2015-08-18T00:12:00Z   0.09799999999999986
+```
+
+查询返回字段`water_level`中的最大和最小值的差值。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组，空值用18来填充，并将点数和series分别限制到3和1，并将series的返回偏移1。
+
+### STDDEV()
+返回字段的标准差。
+#### 语法
+```
+SELECT STDDEV( [ * | <field_key> | /<regular_expression>/ ] ) [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 语法描述
+
+`STDDEV(field_key)`
+
+返回field key的标准差。
+
+`STDDEV(/regular_expression/)`
+
+返回满足正则表达式的每个field key的标准差。
+
+`STDDEV(*)`
+
+返回measurement中每个field key的标准差。
+
+`STDDEV()`支持所有的数值类型的field。
+
+#### 例子
+##### 例一：计算指定字段的标准差
+```
+> SELECT STDDEV("water_level") FROM "h2o_feet"
+
+name: h2o_feet
+time                   stddev
+----                   ------
+1970-01-01T00:00:00Z   2.279144584196141
+```
+
+该查询返回measurement`h2o_feet`的字段`water_level`的的标准差。
+
+##### 例二：计算measurement中每个字段的标准差
+```
+> SELECT STDDEV(*) FROM "h2o_feet"
+
+name: h2o_feet
+time                   stddev_water_level
+----                   ------------------
+1970-01-01T00:00:00Z   2.279144584196141
+```
+
+查询返回在`h2o_feet`中数值类型的每个数值字段的的标准差。`h2o_feet`有一个数值字段：`water_level`。
+
+##### 例三：计算满足正则表达式的字段的标准差
+```
+> SELECT STDDEV(/water/) FROM "h2o_feet"
+
+name: h2o_feet
+time                   stddev_water_level
+----                   ------------------
+1970-01-01T00:00:00Z   2.279144584196141
+```
+
+查询返回在`h2o_feet`中字段中含有`water`的所有数值字段的标准差。
+
+##### 例四：计算含有多个子句字段的标准差
+```
+> SELECT STDDEV("water_level") FROM "h2o_feet" WHERE time >= '2015-08-17T23:48:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(12m),* fill(18000) LIMIT 2 SLIMIT 1 SOFFSET 1
+
+name: h2o_feet
+tags: location=santa_monica
+time                   stddev
+----                   ------
+2015-08-17T23:48:00Z   18000
+2015-08-18T00:00:00Z   0.03676955262170051
+```
+
+查询返回字段`water_level`的标准差。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组，空值用18000来填充，并将点数和series分别限制到2和1，并将series的返回偏移1。
+
+### SUM()
