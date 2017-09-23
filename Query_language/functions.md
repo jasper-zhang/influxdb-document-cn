@@ -706,7 +706,7 @@ time                   stddev
 1970-01-01T00:00:00Z   2.279144584196141
 ```
 
-该查询返回measurement`h2o_feet`的字段`water_level`的的标准差。
+该查询返回measurement`h2o_feet`的字段`water_level`的标准差。
 
 ##### 例二：计算measurement中每个字段的标准差
 ```
@@ -718,7 +718,7 @@ time                   stddev_water_level
 1970-01-01T00:00:00Z   2.279144584196141
 ```
 
-查询返回在`h2o_feet`中数值类型的每个数值字段的的标准差。`h2o_feet`有一个数值字段：`water_level`。
+查询返回在`h2o_feet`中数值类型的每个数值字段的标准差。`h2o_feet`有一个数值字段：`water_level`。
 
 ##### 例三：计算满足正则表达式的字段的标准差
 ```
@@ -747,3 +747,78 @@ time                   stddev
 查询返回字段`water_level`的标准差。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组，空值用18000来填充，并将点数和series分别限制到2和1，并将series的返回偏移1。
 
 ### SUM()
+返回字段值的和。
+#### 语法
+```
+SELECT SUM( [ * | <field_key> | /<regular_expression>/ ] ) [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 语法描述
+
+`SUM(field_key)`
+
+返回field key的值的和。
+
+`SUM(/regular_expression/)`
+
+返回满足正则表达式的每个field key的值的和。
+
+`SUM(*)`
+
+返回measurement中每个field key的值的和。
+
+`SUM()`支持所有的数值类型的field。
+
+#### 例子
+##### 例一：计算指定字段的值的和
+```
+> SELECT SUM("water_level") FROM "h2o_feet"
+
+name: h2o_feet
+time                   sum
+----                   ---
+1970-01-01T00:00:00Z   67777.66900000004
+```
+
+该查询返回measurement`h2o_feet`的字段`water_level`的值的和。
+
+##### 例二：计算measurement中每个字段的值的和
+```
+> SELECT SUM(*) FROM "h2o_feet"
+
+name: h2o_feet
+time                   sum_water_level
+----                   ---------------
+1970-01-01T00:00:00Z   67777.66900000004
+```
+
+查询返回在`h2o_feet`中数值类型的每个数值字段的值的和。`h2o_feet`有一个数值字段：`water_level`。
+
+##### 例三：计算满足正则表达式的字段的值的和
+```
+> SELECT SUM(/water/) FROM "h2o_feet"
+
+name: h2o_feet
+time                   sum_water_level
+----                   ---------------
+1970-01-01T00:00:00Z   67777.66900000004
+```
+
+查询返回在`h2o_feet`中字段中含有`water`的所有数值字段的值的和。
+
+##### 例四：计算含有多个子句字段的值的和
+```
+> SELECT SUM("water_level") FROM "h2o_feet" WHERE time >= '2015-08-17T23:48:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(12m),* fill(18000) LIMIT 4 SLIMIT 1
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   sum
+----                   ---
+2015-08-17T23:48:00Z   18000
+2015-08-18T00:00:00Z   16.125
+2015-08-18T00:12:00Z   15.649
+2015-08-18T00:24:00Z   15.135
+```
+
+查询返回字段`water_level`的值的和。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组，空值用18000来填充，并将点数和series分别限制到2和1，并将series的返回偏移1。
+
+## Selectors
