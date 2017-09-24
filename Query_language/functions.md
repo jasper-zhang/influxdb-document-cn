@@ -822,3 +822,159 @@ time                   sum
 查询返回字段`water_level`的值的和。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组，空值用18000来填充，并将点数和series分别限制到2和1，并将series的返回偏移1。
 
 ## Selectors
+### BOTTOM()
+返回最小的N个field值。
+#### 语法
+```
+SELECT BOTTOM(<field_key>[,<tag_key(s)>],<N> )[,<tag_key(s)>|<field_key(s)>] [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 语法描述
+`BOTTOM(field_key,N)`
+
+返回field key的最小的N个field value。
+
+`BOTTOM(field_key,tag_key(s),N)`
+
+返回某个tag key的N个tag value的最小的field value。
+
+`BOTTOM(field_key,N),tag_key(s),field_key(s)`
+
+返回与圆括号和相关tag和/或字段中的field key相关联的最小N个field value。
+
+`BOTTOM()`支持所有的数值类型的field。
+
+>说明： 
+> 
+> * 如果一个field有两个或多个相等的field value，`BOTTOM()`返回时间戳最早的那个。
+> * `BOTTOM()`和`INTO`子句一起使用的时候，和其他的函数有些不一样。
+
+#### 例子
+##### 例一：选择一个field的最小的三个值
+```
+> SELECT BOTTOM("water_level",3) FROM "h2o_feet"
+
+name: h2o_feet
+time                   bottom
+----                   ------
+2015-08-29T14:30:00Z   -0.61
+2015-08-29T14:36:00Z   -0.591
+2015-08-30T15:18:00Z   -0.594
+```
+
+该查询返回measurement`h2o_feet`的字段`water_level`的最小的三个值。
+
+##### 例二：选择一个field的两个tag的分别最小的值
+```
+> SELECT BOTTOM("water_level","location",2) FROM "h2o_feet"
+
+name: h2o_feet
+time                   bottom   location
+----                   ------   --------
+2015-08-29T10:36:00Z   -0.243   santa_monica
+2015-08-29T14:30:00Z   -0.61    coyote_creek
+```
+
+该查询返回和tag`location`相关的两个tag值的字段`water_level`的分别最小值。
+
+##### 例三：选择一个field的最小的四个值，以及其关联的tag和field
+```
+> SELECT BOTTOM("water_level",4),"location","level description" FROM "h2o_feet"
+
+name: h2o_feet
+time                  bottom  location      level description
+----                  ------  --------      -----------------
+2015-08-29T14:24:00Z  -0.587  coyote_creek  below 3 feet
+2015-08-29T14:30:00Z  -0.61   coyote_creek  below 3 feet
+2015-08-29T14:36:00Z  -0.591  coyote_creek  below 3 feet
+2015-08-30T15:18:00Z  -0.594  coyote_creek  below 3 feet
+```
+
+查询返回`water_level`中最小的四个字段值以及tag`location`和field`level description`的相关值。
+
+##### 例四：选择一个field的最小的三个值，并且包括了多个子句
+```
+> SELECT BOTTOM("water_level",3),"location" FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(24m) ORDER BY time DESC
+
+name: h2o_feet
+time                  bottom  location
+----                  ------  --------
+2015-08-18T00:48:00Z  1.991   santa_monica
+2015-08-18T00:54:00Z  2.054   santa_monica
+2015-08-18T00:54:00Z  6.982   coyote_creek
+2015-08-18T00:24:00Z  2.041   santa_monica
+2015-08-18T00:30:00Z  2.051   santa_monica
+2015-08-18T00:42:00Z  2.057   santa_monica
+2015-08-18T00:00:00Z  2.064   santa_monica
+2015-08-18T00:06:00Z  2.116   santa_monica
+2015-08-18T00:12:00Z  2.028   santa_monica
+```
+
+查询将返回在`2015-08-18T00：00：00Z`和`2015-08-18T00：54：00Z`之间的每24分钟间隔内，`water_level`最小的三个值。它还以降序的时间戳顺序返回结果。 
+
+请注意，`GROUP BY time()`子句不会覆盖点的原始时间戳。有关该行为的更详细解释，请参阅下面的问题一。
+
+#### `BOTTOM()`的常见问题
+##### 问题一：`BOTTOM()`和`GROUP BY time()`子句
+`BOTTOM()`和`GROUP BY time()`子句的查询返回每个`GROUP BY time()`间隔指定的点数。对于大多数`GROUP BY time()`查询，返回的时间戳记标记`GROUP BY time()`间隔的开始。`GROUP BY time()`查询与`BOTTOM()`函数的行为不同; 它们保留原始数据点的时间戳。
+
+例如
+
+下面的查询返回每18分钟·`GROUP BY time()`间隔的两点。请注意，返回的时间戳是点的原始时间戳; 它们不会被强制匹配`GROUP BY time()`间隔的开始。
+
+```
+> SELECT BOTTOM("water_level",2) FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica' GROUP BY time(18m)
+
+name: h2o_feet
+time                   bottom
+----                   ------
+                           __
+2015-08-18T00:00:00Z  2.064 |
+2015-08-18T00:12:00Z  2.028 | <------- Smallest points for the first time interval
+                           --
+                           __
+2015-08-18T00:24:00Z  2.041 |
+2015-08-18T00:30:00Z  2.051 | <------- Smallest points for the second time interval
+                           --
+```
+
+##### 问题二：`BOTTOM()`和一个少于N个值得tag key
+使用语法`SELECT BOTTOM（<field_key>，<tag_key>，<N>）`的查询可以返回比预期少的点。如果tag具有X标签值，则查询指定N个值，当X小于N，则查询返回X点。
+
+例如
+
+下面的查询将要求tag`location`的三个值的`water_level`的最小字段值。由于`location`具有两个值（`santa_monica`和`coyote_creek`），所以查询返回两点而不是三个。
+
+```
+> SELECT BOTTOM("water_level","location",3) FROM "h2o_feet"
+
+name: h2o_feet
+time                   bottom   location
+----                   ------   --------
+2015-08-29T10:36:00Z   -0.243   santa_monica
+2015-08-29T14:30:00Z   -0.61    coyote_creek
+```
+
+##### 问题三：`BOTTOM()`，tags和`INTO`子句
+当与`INTO`子句和`GROUP BY tag`子句结合使用时，大多数InfluxQL函数将初始数据中的任何tag转换为新写入的数据中的field。此行为也适用于`BOTTOM()`函数，除非`BOTTOM()`包含一个tag key作为参数：`BOTTOM(field_key，tag_key(s)，N)`。在这些情况下，系统将指定的tag作为新写入的数据中的tag。
+
+例如
+
+下面的代码块中的第一个查询返回与tag `location`相关联的两个tag value的field`water_level`中最小的字段值。它也将这些结果写入measurement`bottom_water_levels`。 第二个查询显示InfluxDB在`bottom_water_levels`中将`location`保存为tag。
+
+```
+> SELECT BOTTOM("water_level","location",2) INTO "bottom_water_levels" FROM "h2o_feet"
+
+name: result
+time                 written
+----                 -------
+1970-01-01T00:00:00Z 2
+
+> SHOW TAG KEYS FROM "bottom_water_levels"
+
+name: bottom_water_levels
+tagKey
+------
+location
+```
+
+### FIRST()
