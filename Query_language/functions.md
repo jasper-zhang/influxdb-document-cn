@@ -839,7 +839,7 @@ SELECT BOTTOM(<field_key>[,<tag_key(s)>],<N> )[,<tag_key(s)>|<field_key(s)>] [IN
 
 `BOTTOM(field_key,N),tag_key(s),field_key(s)`
 
-返回与圆括号和相关tag和/或字段中的field key相关联的最小N个field value。
+返回括号里的字段的最小N个field value，以及相关的tag或field，或者两者都有。
 
 `BOTTOM()`支持所有的数值类型的field。
 
@@ -978,3 +978,371 @@ location
 ```
 
 ### FIRST()
+返回时间戳最早的值
+#### 语法
+```
+SELECT FIRST(<field_key>)[,<tag_key(s)>|<field_key(s)>] [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 语法描述
+`FIRST(field_key)`
+
+返回field key时间戳最早的值。
+
+`FIRST(/regular_expression/)`
+
+返回满足正则表达式的每个field key的时间戳最早的值。
+
+`FIRST(*)`
+
+返回measurement中每个field key的时间戳最早的值。
+
+`FIRST(field_key),tag_key(s),field_key(s)`
+
+返回括号里的字段的时间戳最早的值，以及相关联的tag或field，或者两者都有。
+
+`FIRST()`支持所有类型的field。
+
+#### 例子
+##### 例一：返回field key时间戳最早的值
+```
+> SELECT FIRST("level description") FROM "h2o_feet"
+
+name: h2o_feet
+time                   first
+----                   -----
+2015-08-18T00:00:00Z   between 6 and 9 feet
+```
+
+查询返回`level description`的时间戳最早的值。
+
+##### 例二：列出一个measurement中每个field key的时间戳最早的值
+```
+> SELECT FIRST(*) FROM "h2o_feet"
+
+name: h2o_feet
+time                   first_level description   first_water_level
+----                   -----------------------   -----------------
+1970-01-01T00:00:00Z   between 6 and 9 feet      8.12
+```
+
+查询返回`h2o_feet`中每个字段的时间戳最早的值。`h2o_feet`有两个字段：`level description`和`water_level`。
+
+##### 例三：列出匹配正则表达式的field的时间戳最早的值
+```
+> SELECT FIRST(/level/) FROM "h2o_feet"
+
+name: h2o_feet
+time                   first_level description   first_water_level
+----                   -----------------------   -----------------
+1970-01-01T00:00:00Z   between 6 and 9 feet      8.12
+```
+
+查询返回`h2o_feet`中含有`level`的字段的时间戳最早的值。
+
+##### 例四：返回field的最早的值，以及其相关的tag和field
+```
+> SELECT FIRST("level description"),"location","water_level" FROM "h2o_feet"
+
+name: h2o_feet
+time                  first                 location      water_level
+----                  -----                 --------      -----------
+2015-08-18T00:00:00Z  between 6 and 9 feet  coyote_creek  8.12
+```
+
+查询返回`level description`的时间戳最早的值，以及其相关的tag`location`和field`water_level`。
+
+##### 例五：列出包含多个子句的field key的时间戳最早的值
+```
+> SELECT FIRST("water_level") FROM "h2o_feet" WHERE time >= '2015-08-17T23:48:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(12m),* fill(9.01) LIMIT 4 SLIMIT 1
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   first
+----                   -----
+2015-08-17T23:48:00Z   9.01
+2015-08-18T00:00:00Z   8.12
+2015-08-18T00:12:00Z   7.887
+2015-08-18T00:24:00Z   7.635
+```
+
+查询返回字段`water_level`中最早的字段值。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组。查询用`9.01`填充空时间间隔，并将点数和measurement限制到4和1。
+
+请注意，`GROUP BY time()`子句覆盖点的原始时间戳。结果中的时间戳表示每12分钟时间间隔的开始; 结果的第一点涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：00：00Z`之间的时间间隔，结果的最后一点涵盖`2015-08-18T00:24:00Z`和`2015-08-18T00：36：00Z`之间的间隔。
+
+### LAST()
+返回时间戳最近的值
+#### 语法
+```
+SELECT LAST(<field_key>)[,<tag_key(s)>|<field_keys(s)>] [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+
+```
+#### 语法描述
+`LAST(field_key)`
+
+返回field key时间戳最近的值。
+
+`LAST(/regular_expression/)`
+
+返回满足正则表达式的每个field key的时间戳最近的值。
+
+`LAST(*)`
+
+返回measurement中每个field key的时间戳最近的值。
+
+`LAST(field_key),tag_key(s),field_key(s)`
+
+返回括号里的字段的时间戳最近的值，以及相关联的tag或field，或者两者都有。
+
+`LAST()`支持所有类型的field。
+
+#### 例子
+##### 例一：返回field key时间戳最近的值
+```
+> SELECT LAST("level description") FROM "h2o_feet"
+
+name: h2o_feet
+time                   last
+----                   ----
+2015-09-18T21:42:00Z   between 3 and 6 feet
+```
+
+查询返回`level description`的时间戳最近的值。
+
+##### 例二：列出一个measurement中每个field key的时间戳最近的值
+```
+> SELECT LAST(*) FROM "h2o_feet"
+
+name: h2o_feet
+time                   first_level description   first_water_level
+----                   -----------------------   -----------------
+1970-01-01T00:00:00Z   between 3 and 6 feet      4.938
+```
+
+查询返回`h2o_feet`中每个字段的时间戳最近的值。`h2o_feet`有两个字段：`level description`和`water_level`。
+
+##### 例三：列出匹配正则表达式的field的时间戳最近的值
+```
+> SELECT LAST(/level/) FROM "h2o_feet"
+
+name: h2o_feet
+time                   first_level description   first_water_level
+----                   -----------------------   -----------------
+1970-01-01T00:00:00Z   between 3 and 6 feet      4.938
+```
+
+查询返回`h2o_feet`中含有`level`的字段的时间戳最近的值。
+
+##### 例四：返回field的最近的值，以及其相关的tag和field
+```
+> SELECT LAST("level description"),"location","water_level" FROM "h2o_feet"
+
+name: h2o_feet
+time                  last                  location      water_level
+----                  ----                  --------      -----------
+2015-09-18T21:42:00Z  between 3 and 6 feet  santa_monica  4.938
+```
+
+查询返回`level description`的时间戳最近的值，以及其相关的tag`location`和field`water_level`。
+
+##### 例五：列出包含多个子句的field key的时间戳最近的值
+```
+> SELECT LAST("water_level") FROM "h2o_feet" WHERE time >= '2015-08-17T23:48:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(12m),* fill(9.01) LIMIT 4 SLIMIT 1
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   last
+----                   ----
+2015-08-17T23:48:00Z   9.01
+2015-08-18T00:00:00Z   8.005
+2015-08-18T00:12:00Z   7.762
+2015-08-18T00:24:00Z   7.5
+```
+
+查询返回字段`water_level`中最近的字段值。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组。查询用`9.01`填充空时间间隔，并将点数和measurement限制到4和1。
+
+请注意，`GROUP BY time()`子句覆盖点的原始时间戳。结果中的时间戳表示每12分钟时间间隔的开始; 结果的第一点涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：00：00Z`之间的时间间隔，结果的最后一点涵盖`2015-08-18T00:24:00Z`和`2015-08-18T00：36：00Z`之间的间隔。
+
+### MAX()
+返回最大的字段值
+#### 语法
+```
+SELECT MAX(<field_key>)[,<tag_key(s)>|<field__key(s)>] [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 语法描述
+`MAX(field_key)`
+
+返回field key的最大值。
+
+`MAX(/regular_expression/)`
+
+返回满足正则表达式的每个field key的最大值。
+
+`MAX(*)`
+
+返回measurement中每个field key的最大值。
+
+`MAX(field_key),tag_key(s),field_key(s)`
+
+返回括号里的字段的最大值，以及相关联的tag或field，或者两者都有。
+
+`MAX()`支持所有数值类型的field。
+
+#### 例子
+##### 例一：返回field key的最大值
+```
+> SELECT MAX("water_level") FROM "h2o_feet"
+
+name: h2o_feet
+time                   max
+----                   ---
+2015-08-29T07:24:00Z   9.964
+```
+
+查询返回`water_level`的最大值。
+
+##### 例二：列出一个measurement中每个field key的最大值
+```
+> SELECT MAX(*) FROM "h2o_feet"
+
+name: h2o_feet
+time                   max_water_level
+----                   ---------------
+2015-08-29T07:24:00Z   9.964
+```
+
+查询返回`h2o_feet`中每个字段的最大值。`h2o_feet`有一个数值类型的字段：`water_level`。
+
+##### 例三：列出匹配正则表达式的field的最大值
+```
+> SELECT MAX(/level/) FROM "h2o_feet"
+
+name: h2o_feet
+time                   max_water_level
+----                   ---------------
+2015-08-29T07:24:00Z   9.964
+```
+
+查询返回`h2o_feet`中含有`level`的数值字段的最大值。
+
+##### 例四：返回field的最大值，以及其相关的tag和field
+```
+> SELECT MAX("water_level"),"location","level description" FROM "h2o_feet"
+
+name: h2o_feet
+time                  max    location      level description
+----                  ---    --------      -----------------
+2015-08-29T07:24:00Z  9.964  coyote_creek  at or greater than 9 feet
+```
+
+查询返回`water_level`的最大值，以及其相关的tag`location`和field`level description`。
+
+##### 例五：列出包含多个子句的field key的最大值
+```
+> SELECT MAX("water_level") FROM "h2o_feet" WHERE time >= '2015-08-17T23:48:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(12m),* fill(9.01) LIMIT 4 SLIMIT 1
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   max
+----                   ---
+2015-08-17T23:48:00Z   9.01
+2015-08-18T00:00:00Z   8.12
+2015-08-18T00:12:00Z   7.887
+2015-08-18T00:24:00Z   7.635
+```
+
+查询返回字段`water_level`的最大值。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组。查询用`9.01`填充空时间间隔，并将点数和measurement限制到4和1。
+
+请注意，`GROUP BY time()`子句覆盖点的原始时间戳。结果中的时间戳表示每12分钟时间间隔的开始; 结果的第一点涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：00：00Z`之间的时间间隔，结果的最后一点涵盖`2015-08-18T00:24:00Z`和`2015-08-18T00：36：00Z`之间的间隔。
+
+### MIN()
+返回最小的字段值
+#### 语法
+```
+SELECT MIN(<field_key>)[,<tag_key(s)>|<field__key(s)>] [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 语法描述
+`MIN(field_key)`
+
+返回field key的最小值。
+
+`MIN(/regular_expression/)`
+
+返回满足正则表达式的每个field key的最小值。
+
+`MIN(*)`
+
+返回measurement中每个field key的最小值。
+
+`MIN(field_key),tag_key(s),field_key(s)`
+
+返回括号里的字段的最小值，以及相关联的tag或field，或者两者都有。
+
+`MIN()`支持所有数值类型的field。
+
+#### 例子
+##### 例一：返回field key的最小值
+```
+> SELECT MIN("water_level") FROM "h2o_feet"
+
+name: h2o_feet
+time                   min
+----                   ---
+2015-08-29T14:30:00Z   -0.61
+```
+
+查询返回`water_level`的最小值。
+
+##### 例二：列出一个measurement中每个field key的最小值
+```
+> SELECT MIN(*) FROM "h2o_feet"
+
+name: h2o_feet
+time                   min_water_level
+----                   ---------------
+2015-08-29T14:30:00Z   -0.61
+```
+
+查询返回`h2o_feet`中每个字段的最小值。`h2o_feet`有一个数值类型的字段：`water_level`。
+
+##### 例三：列出匹配正则表达式的field的最小值
+```
+> SELECT MIN(/level/) FROM "h2o_feet"
+
+name: h2o_feet
+time                   min_water_level
+----                   ---------------
+2015-08-29T14:30:00Z   -0.61
+```
+
+查询返回`h2o_feet`中含有`level`的数值字段的最小值。
+
+##### 例四：返回field的最小值，以及其相关的tag和field
+```
+> SELECT MIN("water_level"),"location","level description" FROM "h2o_feet"
+
+name: h2o_feet
+time                  min    location      level description
+----                  ---    --------      -----------------
+2015-08-29T14:30:00Z  -0.61  coyote_creek  below 3 feet
+```
+
+查询返回`water_level`的最小值，以及其相关的tag`location`和field`level description`。
+
+##### 例五：列出包含多个子句的field key的最小值
+```
+> SELECT MIN("water_level") FROM "h2o_feet" WHERE time >= '2015-08-17T23:48:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(12m),* fill(9.01) LIMIT 4 SLIMIT 1
+
+name: h2o_feet
+tags: location=coyote_creek
+time                   min
+----                   ---
+2015-08-17T23:48:00Z   9.01
+2015-08-18T00:00:00Z   8.005
+2015-08-18T00:12:00Z   7.762
+2015-08-18T00:24:00Z   7.5
+```
+
+查询返回字段`water_level`的最小值。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按12分钟的时间间隔和每个tag分组。查询用`9.01`填充空时间间隔，并将点数和measurement限制到4和1。
+
+请注意，`GROUP BY time()`子句覆盖点的原始时间戳。结果中的时间戳表示每12分钟时间间隔的开始; 结果的第一点涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：00：00Z`之间的时间间隔，结果的最后一点涵盖`2015-08-18T00:24:00Z`和`2015-08-18T00：36：00Z`之间的间隔。
+
