@@ -1346,3 +1346,385 @@ time                   min
 
 请注意，`GROUP BY time()`子句覆盖点的原始时间戳。结果中的时间戳表示每12分钟时间间隔的开始; 结果的第一点涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：00：00Z`之间的时间间隔，结果的最后一点涵盖`2015-08-18T00:24:00Z`和`2015-08-18T00：36：00Z`之间的间隔。
 
+### PERCENTILE()
+返回较大百分之N的字段值
+#### 语法
+```
+SELECT PERCENTILE(<field_key>, <N>)[,<tag_key(s)>|<field_key(s)>] [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 语法描述
+`PERCENTILE(field_key,N)`
+
+返回field key较大的百分之N的值。
+
+`PERCENTILE(/regular_expression/,N)`
+
+返回满足正则表达式的每个field key较大的百分之N的值。
+
+`PERCENTILE(*,N)`
+
+返回measurement中每个field key较大的百分之N的值。
+
+`PERCENTILE(field_key,N),tag_key(s),field_key(s)`
+
+返回括号里的字段较大的百分之N的值，以及相关联的tag或field，或者两者都有。
+
+`N`必须是0到100的整数或者浮点数。
+
+`PERCENTILE()`支持所有数值类型的field。
+
+#### 例子
+##### 例一：返回field key较大的百分之5的值
+```
+> SELECT PERCENTILE("water_level",5) FROM "h2o_feet"
+
+name: h2o_feet
+time                   percentile
+----                   ----------
+2015-08-31T03:42:00Z   1.122
+```
+
+查询返回`water_level`中值在总的field value中比较大的百分之五。
+
+##### 例二：列出一个measurement中每个field key较大的百分之5的值
+```
+> SELECT PERCENTILE(*,5) FROM "h2o_feet"
+
+name: h2o_feet
+time                   percentile_water_level
+----                   ----------------------
+2015-08-31T03:42:00Z   1.122
+```
+
+查询返回`h2o_feet`中每个字段中值在总的field value中比较大的百分之五。`h2o_feet`有一个数值类型的字段：`water_level`。
+
+##### 例三：列出匹配正则表达式的field较大的百分之5的值
+```
+> SELECT PERCENTILE(/level/,5) FROM "h2o_feet"
+
+name: h2o_feet
+time                   percentile_water_level
+----                   ----------------------
+2015-08-31T03:42:00Z   1.122
+```
+
+查询返回`h2o_feet`中含有`water`的数值字段的较大的百分之5的值。
+
+##### 例四：返回field较大的百分之5的值，以及其相关的tag和field
+```
+> SELECT PERCENTILE("water_level",5),"location","level description" FROM "h2o_feet"
+
+name: h2o_feet
+time                  percentile  location      level description
+----                  ----------  --------      -----------------
+2015-08-31T03:42:00Z  1.122       coyote_creek  below 3 feet
+```
+
+查询返回`water_level`的较大的百分之5的值，以及其相关的tag`location`和field`level description`。
+
+##### 例五：列出包含多个子句的field key的较大的百分之20的值
+```
+> SELECT PERCENTILE("water_level",20) FROM "h2o_feet" WHERE time >= '2015-08-17T23:48:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(24m) fill(15) LIMIT 2
+
+name: h2o_feet
+time                   percentile
+----                   ----------
+2015-08-17T23:36:00Z   15
+2015-08-18T00:00:00Z   2.064
+```
+
+查询返回字段`water_level`较大的百分之20的值。它涵盖`2015-08-17T23：48：00Z`和`2015-08-18T00：54：00Z`之间的时间段，并将结果按24分钟的时间间隔分组。查询用`15`填充空时间间隔，并将点数限制到2。
+
+请注意，`GROUP BY time()`子句覆盖点的原始时间戳。结果中的时间戳表示每24分钟时间间隔的开始; 结果的第一点涵盖`2015-08-17T23：36：00Z`和`2015-08-18T00：00：00Z`之间的时间间隔，结果的最后一点涵盖`2015-08-18T00:00:00Z`和`2015-08-18T00：24：00Z`之间的间隔。
+
+#### PERCENTILE()的常见问题
+##### 问题一：PERCENTILE()和其他函数的比较
+
+* `PERCENTILE(<field_key>,100)`相当于`MAX(<field_key>)`。
+* `PERCENTILE(<field_key>，50)`几乎等于`MEDIAN(<field_key>)`，除了如果字段键包含偶数个字段值,`MEDIAN()`函数返回两个中间值的平均值.
+* `PERCENTILE(<field_key>,0)`相当于`MIN(<field_key>)`
+
+### SAMPLE()
+返回`N`个随机抽样的字段值。`SAMPLE()`使用[reservoir sampling](https://en.wikipedia.org/wiki/Reservoir_sampling)来生成随机点。
+
+#### 语法
+```
+SELECT SAMPLE(<field_key>, <N>)[,<tag_key(s)>|<field_key(s)>] [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+
+`SAMPLE(field_key,N)`
+
+返回field key的N个随机抽样的字段值。
+
+`SAMPLE(/regular_expression/,N)`
+
+返回满足正则表达式的每个field key的N个随机抽样的字段值。
+
+`SAMPLE(*,N)`
+
+返回measurement中每个field key的N个随机抽样的字段值。
+
+`SAMPLE(field_key,N),tag_key(s),field_key(s)`
+
+返回括号里的字段的N个随机抽样的字段值，以及相关联的tag或field，或者两者都有。
+
+`N`必须是整数。
+
+`SAMPLE()`支持所有类型的field。
+
+#### 例子
+##### 例一：返回field key的两个随机抽样的字段值
+```
+> SELECT SAMPLE("water_level",2) FROM "h2o_feet"
+
+name: h2o_feet
+time                   sample
+----                   ------
+2015-09-09T21:48:00Z   5.659
+2015-09-18T10:00:00Z   6.939
+```
+
+查询返回`water_level`的两个随机抽样的字段值。
+
+##### 例二：列出一个measurement中每个field key的两个随机抽样的字段值
+```
+> SELECT SAMPLE(*,2) FROM "h2o_feet"
+
+name: h2o_feet
+time                   sample_level description   sample_water_level
+----                   ------------------------   ------------------
+2015-08-25T17:06:00Z                              3.284
+2015-09-03T04:30:00Z   below 3 feet
+2015-09-03T20:06:00Z   between 3 and 6 feet
+2015-09-08T21:54:00Z                              3.412
+```
+
+查询返回`h2o_feet`中每个字段的两个随机抽样的字段值。`h2o_feet`有两个字段：`water_level`和`level description`。
+
+##### 例三：列出匹配正则表达式的field的两个随机抽样的字段值
+```
+> SELECT SAMPLE(/level/,2) FROM "h2o_feet"
+
+name: h2o_feet
+time                   sample_level description   sample_water_level
+----                   ------------------------   ------------------
+2015-08-30T05:54:00Z   between 6 and 9 feet
+2015-09-07T01:18:00Z                              7.854
+2015-09-09T20:30:00Z                              7.32
+2015-09-13T19:18:00Z   between 3 and 6 feet
+```
+
+查询返回`h2o_feet`中含有`level`的字段的两个随机抽样的字段值。
+
+##### 例四：返回field两个随机抽样的字段值，以及其相关的tag和field
+```
+> SELECT SAMPLE("water_level",2),"location","level description" FROM "h2o_feet"
+
+name: h2o_feet
+time                  sample  location      level description
+----                  ------  --------      -----------------
+2015-08-29T10:54:00Z  5.689   coyote_creek  between 3 and 6 feet
+2015-09-08T15:48:00Z  6.391   coyote_creek  between 6 and 9 feet
+```
+
+查询返回`water_level`的两个随机抽样的字段值，以及其相关的tag`location`和field`level description`。
+
+##### 例五：列出包含多个子句的field key的一个随机抽样的字段值
+```
+> SELECT SAMPLE("water_level",1) FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica' GROUP BY time(18m)
+
+name: h2o_feet
+time                   sample
+----                   ------
+2015-08-18T00:12:00Z   2.028
+2015-08-18T00:30:00Z   2.051
+```
+
+查询返回字段`water_level`的一个随机抽样的字段值。它涵盖`2015-08-18T00：00：00Z`和`2015-08-18T00：30：00Z`之间的时间段，并将结果按18分钟的时间间隔分组。
+
+请注意，`GROUP BY time()`子句没有覆盖点的原始时间戳。有关该行为的更详细解释，请参阅下面的问题一。
+
+#### SAMPLE()的常见问题
+##### 问题一：`SAMPLE()`和`GROUP BY time()`
+使用`SAMPLE()`和`GROUP BY time()`子句的查询返回每个`GROUP BY time()`间隔的指定点数(`N`)。对于大多数`GROUP BY time()`查询，返回的时间戳是每个`GROUP BY time()`间隔的开始。`GROUP BY time()`查询与`SAMPLE()`函数的行为不同; 它们保留原始数据点的时间戳。
+
+例如
+
+下面的查询每18分钟`GROUP BY time()`间隔返回两个随机的点。请注意，返回的时间戳是点的原始时间戳; 它们不会被强制置为`GROUP BY time()`间隔的开始。
+
+```
+> SELECT SAMPLE("water_level",2) FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica' GROUP BY time(18m)
+
+name: h2o_feet
+time                   sample
+----                   ------
+                           __
+2015-08-18T00:06:00Z   2.116 |
+2015-08-18T00:12:00Z   2.028 | <------- Randomly-selected points for the first time interval
+                           --
+                           __
+2015-08-18T00:18:00Z   2.126 |
+2015-08-18T00:30:00Z   2.051 | <------- Randomly-selected points for the second time interval
+ 
+```
+
+### TOP()
+返回最大的N个field值。
+#### 语法
+```
+SELECT TOP(<field_key>[,<tag_key(s)>],<N> )[,<tag_key(s)>|<field_key(s)>] [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 语法描述
+`TOP(field_key,N)`
+
+返回field key的最大的N个field value。
+
+`TOP(field_key,tag_key(s),N)`
+
+返回某个tag key的N个tag value的最大的field value。
+
+`TOP(field_key,N),tag_key(s),field_key(s)`
+
+返回括号里的字段的最大N个field value，以及相关的tag或field，或者两者都有。
+
+`TOP()`支持所有的数值类型的field。
+
+>说明： 
+> 
+> * 如果一个field有两个或多个相等的field value，`TOP()`返回时间戳最早的那个。
+> * `TOP()`和`INTO`子句一起使用的时候，和其他的函数有些不一样。
+
+#### 例子
+##### 例一：选择一个field的最大的三个值
+```
+> SELECT TOP("water_level",3) FROM "h2o_feet"
+
+name: h2o_feet
+time                   top
+----                   ---
+2015-08-29T07:18:00Z   9.957
+2015-08-29T07:24:00Z   9.964
+2015-08-29T07:30:00Z   9.954
+```
+
+该查询返回measurement`h2o_feet`的字段`water_level`的最大的三个值。
+
+##### 例二：选择一个field的两个tag的分别最大的值
+```
+> SELECT TOP("water_level","location",2) FROM "h2o_feet"
+
+name: h2o_feet
+time                   top     location
+----                   ---     --------
+2015-08-29T03:54:00Z   7.205   santa_monica
+2015-08-29T07:24:00Z   9.964   coyote_creek
+```
+
+该查询返回和tag`location`相关的两个tag值的字段`water_level`的分别最大值。
+
+##### 例三：选择一个field的最大的四个值，以及其关联的tag和field
+```
+> SELECT TOP("water_level",4),"location","level description" FROM "h2o_feet"
+
+name: h2o_feet
+time                  top    location      level description
+----                  ---    --------      -----------------
+2015-08-29T07:18:00Z  9.957  coyote_creek  at or greater than 9 feet
+2015-08-29T07:24:00Z  9.964  coyote_creek  at or greater than 9 feet
+2015-08-29T07:30:00Z  9.954  coyote_creek  at or greater than 9 feet
+2015-08-29T07:36:00Z  9.941  coyote_creek  at or greater than 9 feet
+```
+
+查询返回`water_level`中最大的四个字段值以及tag`location`和field`level description`的相关值。
+
+##### 例四：选择一个field的最大的三个值，并且包括了多个子句
+```
+> SELECT TOP("water_level",3),"location" FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:54:00Z' GROUP BY time(24m) ORDER BY time DESC
+
+name: h2o_feet
+time                  top    location
+----                  ---    --------
+2015-08-18T00:48:00Z  7.11   coyote_creek
+2015-08-18T00:54:00Z  6.982  coyote_creek
+2015-08-18T00:54:00Z  2.054  santa_monica
+2015-08-18T00:24:00Z  7.635  coyote_creek
+2015-08-18T00:30:00Z  7.5    coyote_creek
+2015-08-18T00:36:00Z  7.372  coyote_creek
+2015-08-18T00:00:00Z  8.12   coyote_creek
+2015-08-18T00:06:00Z  8.005  coyote_creek
+2015-08-18T00:12:00Z  7.887  coyote_creek
+```
+
+查询将返回在`2015-08-18T00：00：00Z`和`2015-08-18T00：54：00Z`之间的每24分钟间隔内，`water_level`最大的三个值。它还以降序的时间戳顺序返回结果。 
+
+请注意，`GROUP BY time()`子句不会覆盖点的原始时间戳。有关该行为的更详细解释，请参阅下面的问题一。
+
+#### `TOP()`的常见问题
+##### 问题一：`TOP()`和`GROUP BY time()`子句
+`TOP()`和`GROUP BY time()`子句的查询返回每个`GROUP BY time()`间隔指定的点数。对于大多数`GROUP BY time()`查询，返回的时间戳被置为`GROUP BY time()`间隔的开始。`GROUP BY time()`查询与`TOP()`函数的行为不同; 它们保留原始数据点的时间戳。
+
+例如
+
+下面的查询返回每18分钟·`GROUP BY time()`间隔的两点。请注意，返回的时间戳是点的原始时间戳; 它们不会被强制匹配`GROUP BY time()`间隔的开始。
+
+```
+> SELECT TOP("water_level",2) FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica' GROUP BY time(18m)
+
+name: h2o_feet
+time                   top
+----                   ------
+                           __
+2015-08-18T00:00:00Z  2.064 |
+2015-08-18T00:06:00Z  2.116 | <------- Greatest points for the first time interval
+                           --
+                           __
+2015-08-18T00:18:00Z  2.126 |
+2015-08-18T00:30:00Z  2.051 | <------- Greatest points for the second time interval
+                           --
+```
+
+##### 问题二：`TOP()`和一个少于N个值得tag key
+使用语法`SELECT TOP（<field_key>，<tag_key>，<N>）`的查询可以返回比预期少的点。如果tag具有X标签值，则查询指定N个值，当X小于N，则查询返回X点。
+
+例如
+
+下面的查询将要求tag`location`的三个值的`water_level`的最大字段值。由于`location`具有两个值（`santa_monica`和`coyote_creek`），所以查询返回两点而不是三个。
+
+```
+> SELECT TOP("water_level","location",3) FROM "h2o_feet"
+
+name: h2o_feet
+time                  top    location
+----                  ---    --------
+2015-08-29T03:54:00Z  7.205  santa_monica
+2015-08-29T07:24:00Z  9.964  coyote_creek
+```
+
+##### 问题三：`TOP()`，tags和`INTO`子句
+当与`INTO`子句和`GROUP BY tag`子句结合使用时，大多数InfluxQL函数将初始数据中的任何tag转换为新写入的数据中的field。此行为也适用于`TOP()`函数，除非`TOP()`包含一个tag key作为参数：`TOP(field_key，tag_key(s)，N)`。在这些情况下，系统将指定的tag作为新写入的数据中的tag。
+
+例如
+
+下面的代码块中的第一个查询返回与tag `location`相关联的两个tag value的field`water_level`中最大的字段值。它也将这些结果写入measurement`top_water_levels`。 第二个查询显示InfluxDB在`top_water_levels`中将`location`保存为tag。
+
+```
+> SELECT TOP("water_level","location",2) INTO "top_water_levels" FROM "h2o_feet"
+
+name: result
+time                 written
+----                 -------
+1970-01-01T00:00:00Z 2
+
+> SHOW TAG KEYS FROM "top_water_levels"
+
+name: top_water_levels
+tagKey
+------
+location
+```
+
+## Transformations
+### CEILING()
+`CEILING()`已经不再是一个函数了，具体请查看[Issue #5930](https://github.com/influxdata/influxdb/issues/5930)。
+
+### CUMULATIVE_SUM()
