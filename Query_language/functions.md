@@ -1728,3 +1728,151 @@ location
 `CEILING()`已经不再是一个函数了，具体请查看[Issue #5930](https://github.com/influxdata/influxdb/issues/5930)。
 
 ### CUMULATIVE_SUM()
+返回字段实时前序字段值的和。
+
+#### 基本语法
+```
+SELECT CUMULATIVE_SUM( [ * | <field_key> | /<regular_expression>/ ] ) [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+#### 基本语法描述
+`CUMULATIVE_SUM(field_key)`
+
+返回field key实时前序字段值的和。
+
+`CUMULATIVE_SUM(/regular_expression/)`
+
+返回满足正则表达式的所有字段的实时前序字段值的和。
+
+`CUMULATIVE_SUM(*)`
+
+返回measurement的所有字段的实时前序字段值的和。
+
+`CUMULATIVE_SUM()`支持所有的数值类型的field。
+
+基本语法支持`GROUP BY`tags子句，但是不支持`GROUP BY`时间。在高级语法中，`CUMULATIVE_SUM`支持`GROUP BY time()`子句。
+
+#### 基本语法的例子
+下面的1~4例子使用如下的数据：
+
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica'
+
+name: h2o_feet
+time                   water_level
+----                   -----------
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   2.116
+2015-08-18T00:12:00Z   2.028
+2015-08-18T00:18:00Z   2.126
+2015-08-18T00:24:00Z   2.041
+2015-08-18T00:30:00Z   2.051
+```
+##### 例一：计算一个字段的实时前序字段值的和。
+```
+> SELECT CUMULATIVE_SUM("water_level") FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica'
+
+name: h2o_feet
+time                   cumulative_sum
+----                   --------------
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   4.18
+2015-08-18T00:12:00Z   6.208
+2015-08-18T00:18:00Z   8.334
+2015-08-18T00:24:00Z   10.375
+2015-08-18T00:30:00Z   12.426
+```
+
+该查询返回measurement`h2o_feet`的字段`water_level`的实时前序字段值的和。
+
+##### 例二：计算measurement中每个字段的实时前序字段值的和
+
+```
+> SELECT CUMULATIVE_SUM(*) FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica'
+
+name: h2o_feet
+time                   cumulative_sum_water_level
+----                   --------------------------
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   4.18
+2015-08-18T00:12:00Z   6.208
+2015-08-18T00:18:00Z   8.334
+2015-08-18T00:24:00Z   10.375
+2015-08-18T00:30:00Z   12.426
+```
+
+该查询返回`h2o_feet`中每个数值类型的字段的实时前序字段值的和。`h2o_feet`只有一个数值类型的字段`water_level`。
+
+##### 例三：计算measurement中满足正则表达式的每个字段的实时前序字段值的和。
+
+```
+> SELECT CUMULATIVE_SUM(/water/) FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica'
+
+name: h2o_feet
+time                   cumulative_sum_water_level
+----                   --------------------------
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   4.18
+2015-08-18T00:12:00Z   6.208
+2015-08-18T00:18:00Z   8.334
+2015-08-18T00:24:00Z   10.375
+2015-08-18T00:30:00Z   12.426
+```
+
+查询返回measurement中含有单词`word`的每个数值字段的实时前序字段值的和。
+
+##### 例四：计算一个字段的实时前序字段值的和，并且包括了多个子句
+```
+> SELECT CUMULATIVE_SUM("water_level") FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica' ORDER BY time DESC LIMIT 4 OFFSET 2
+
+name: h2o_feet
+time                  cumulative_sum
+----                  --------------
+2015-08-18T00:18:00Z  6.218
+2015-08-18T00:12:00Z  8.246
+2015-08-18T00:06:00Z  10.362
+2015-08-18T00:00:00Z  12.426
+```
+
+查询将返回在`2015-08-18T00：00：00Z`和`2015-08-18T00：30：00Z`之间的实时前序字段值的和，以降序的时间戳顺序返回结果。并且限制返回的数据点为4，偏移数据点2个。
+
+#### 高级语法
+```
+SELECT CUMULATIVE_SUM(<function>( [ * | <field_key> | /<regular_expression>/ ] )) [INTO_clause] FROM_clause [WHERE_clause] GROUP_BY_clause [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+``` 
+
+#### 高级语法描述
+高级语法要求一个`GROUP BY time()`子句和一个嵌套的InfluxQL函数。查询首先计算在指定时间区间嵌套函数的结果，然后应用`CUMULATIVE_SUM()`函数的结果。
+
+`CUMULATIVE_SUM()`支持以下嵌套函数：`COUNT(), MEAN(), MEDIAN(), MODE(), SUM(), FIRST(), LAST(), MIN(), MAX(), PERCENTILE()`。
+
+#### 高级语法的例子
+##### 例一：计算平均值的cumulative和
+```
+> SELECT CUMULATIVE_SUM(MEAN("water_level")) FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica' GROUP BY time(12m)
+
+name: h2o_feet
+time                   cumulative_sum
+----                   --------------
+2015-08-18T00:00:00Z   2.09
+2015-08-18T00:12:00Z   4.167
+2015-08-18T00:24:00Z   6.213
+```
+
+该查询返回每隔12分钟的`water_level`的平均值的实时和。
+
+为得到这个结果，InfluxDB首先计算每隔12分钟的平均`water_level`值：
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica' GROUP BY time(12m)
+
+name: h2o_feet
+time                   mean
+----                   ----
+2015-08-18T00:00:00Z   2.09
+2015-08-18T00:12:00Z   2.077
+2015-08-18T00:24:00Z   2.0460000000000003
+```
+
+下一步，InfluxDB计算这些平均值的实时和。第二个点`4.167`是`2.09`和`2.077`的和，第三个点`6.213`是`2.09`,`2.077`和`2.04600000000003`的和。
+
+### DERIVATIVE
