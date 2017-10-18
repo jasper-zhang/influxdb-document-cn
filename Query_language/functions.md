@@ -1876,3 +1876,263 @@ time                   mean
 下一步，InfluxDB计算这些平均值的实时和。第二个点`4.167`是`2.09`和`2.077`的和，第三个点`6.213`是`2.09`,`2.077`和`2.04600000000003`的和。
 
 ### DERIVATIVE
+返回字段的相邻两个点的变化率。
+#### 基本语法
+```
+SELECT DERIVATIVE( [ * | <field_key> | /<regular_expression>/ ] [ , <unit> ] ) [INTO_clause] FROM_clause [WHERE_clause] [GROUP_BY_clause] [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+
+#### 基本语法描述
+InfluxDB计算字段值之间的差并将结果转换为每`unit`变化率。`unit`参数是一个表示时间单位的字符，它是可选的。如果查询没有指定，则该`unit`默认为1秒（1s）。
+
+`DERIVATIVE(field_key)`
+
+返回field key的字段值的变化率。
+
+`DERIVATIVE(/regular_expression/)`
+
+返回满足正则表达式的所有字段的字段值的变化率。
+
+`DERIVATIVE(*)`
+
+返回measurement的所有字段的字段值的变化率。
+
+`DERIVATIVE()`支持所有的数值类型的field。
+
+基本语法支持`GROUP BY`tags子句，但是不支持`GROUP BY`时间。在高级语法中，`DERIVATIVE`支持`GROUP BY time()`子句。
+
+#### 基本语法的例子
+下面的1~5例子使用如下的数据：
+
+```
+> SELECT "water_level" FROM "h2o_feet" WHERE time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' AND "location" = 'santa_monica'
+
+name: h2o_feet
+time                   water_level
+----                   -----------
+2015-08-18T00:00:00Z   2.064
+2015-08-18T00:06:00Z   2.116
+2015-08-18T00:12:00Z   2.028
+2015-08-18T00:18:00Z   2.126
+2015-08-18T00:24:00Z   2.041
+2015-08-18T00:30:00Z   2.051
+```
+##### 例一：计算一个字段的变化率
+```
+> SELECT DERIVATIVE("water_level") FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z'
+
+name: h2o_feet
+time                   derivative
+----                   ----------
+2015-08-18T00:06:00Z   0.00014444444444444457
+2015-08-18T00:12:00Z   -0.00024444444444444465
+2015-08-18T00:18:00Z   0.0002722222222222218
+2015-08-18T00:24:00Z   -0.000236111111111111
+2015-08-18T00:30:00Z   2.777777777777842e-05
+```
+
+该查询返回measurement`h2o_feet`的字段`water_level`的每秒变化率。
+
+第一个结果`0.00014444444444444457`是原始数据两个相邻字段值到每秒的变化率。InfluxDB计算字段值的变化，并且转化到每秒：
+
+```
+(2.116 - 2.064) / (360s / 1s)
+--------------    ----------
+       |               |
+       |          the difference between the field values' timestamps / the default unit
+second field value - first field value
+```
+
+##### 例二：计算一个字段的变化率并指定时间单位
+
+```
+> SELECT DERIVATIVE("water_level",6m) FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z'
+
+name: h2o_feet
+time			derivative
+----			----------
+2015-08-18T00:06:00Z	0.052000000000000046
+2015-08-18T00:12:00Z	-0.08800000000000008
+2015-08-18T00:18:00Z	0.09799999999999986
+2015-08-18T00:24:00Z	-0.08499999999999996
+2015-08-18T00:30:00Z	0.010000000000000231
+```
+
+该查询返回measurement`h2o_feet`的字段`water_level`的每6分钟的变化率。
+
+第一个结果`0.052000000000000046`是原始数据两个相邻字段值到每6分钟的变化率。InfluxDB计算字段值的变化，并且转化到每6分钟：
+
+```
+(2.116 - 2.064) / (6m / 6m)
+--------------    ----------
+       |              |
+       |          the difference between the field values' timestamps / the specified unit
+second field value - first field value
+```
+
+
+##### 例三：计算measurement中每个一个字段的变化率并指定时间单位
+
+```
+> SELECT DERIVATIVE(*,3m) FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z'
+
+
+name: h2o_feet
+time                   derivative_water_level
+----                   ----------------------
+2015-08-18T00:06:00Z   0.026000000000000023
+2015-08-18T00:12:00Z   -0.04400000000000004
+2015-08-18T00:18:00Z   0.04899999999999993
+2015-08-18T00:24:00Z   -0.04249999999999998
+2015-08-18T00:30:00Z   0.0050000000000001155
+```
+
+该查询返回measurement`h2o_feet`中每个数值字段的每3分钟的变化率。该measurement有一个数值字段：`water_level`。
+
+第一个结果`0.026000000000000023`是原始数据两个相邻字段值到每3分钟的变化率。InfluxDB计算字段值的变化，并且转化到每3分钟：
+
+```
+(2.116 - 2.064) / (6m / 3m)
+--------------    ----------
+       |              |
+       |          the difference between the field values' timestamps / the specified unit
+second field value - first field value
+```
+
+##### 例四：计算measurement中满足正则表达式每个一个字段的变化率并指定时间单位
+
+```
+> SELECT DERIVATIVE(/water/,2m) FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z'
+
+name: h2o_feet
+time                   derivative_water_level
+----                   ----------------------
+2015-08-18T00:06:00Z   0.01733333333333335
+2015-08-18T00:12:00Z   -0.02933333333333336
+2015-08-18T00:18:00Z   0.03266666666666662
+2015-08-18T00:24:00Z   -0.02833333333333332
+2015-08-18T00:30:00Z   0.0033333333333334103
+```
+
+该查询返回measurement`h2o_feet`中满足正则表达式的每个数值字段的每2分钟的变化率。该measurement有一个数值字段：`water_level`。
+
+第一个结果`0.01733333333333335`是原始数据两个相邻字段值到每3分钟的变化率。InfluxDB计算字段值的变化，并且转化到每2分钟：
+
+```
+(2.116 - 2.064) / (6m / 2m)
+--------------    ----------
+       |              |
+       |          the difference between the field values' timestamps / the specified unit
+second field value - first field value
+```
+
+##### 例五：计算个一个字段的变化率并包括多个子句
+
+```
+> SELECT DERIVATIVE("water_level") FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' ORDER BY time DESC LIMIT 1 OFFSET 2
+
+name: h2o_feet
+time                   derivative
+----                   ----------
+2015-08-18T00:12:00Z   -0.0002722222222222218
+```
+
+查询将返回在`2015-08-18T00：00：00Z`和`2015-08-18T00：30：00Z`之间，`water_level`的每秒的变化率。它还以降序的时间戳顺序返回结果。 并且限制返回的数据点为1，偏移两个数据点
+
+第一个结果`0.0002722222222222218`是原始数据两个相邻字段值到每秒的变化率。InfluxDB计算字段值的变化，并且转化到每秒：
+
+```
+(2.126 - 2.028) / (360s / 1s)
+--------------    ----------
+       |              |
+       |          the difference between the field values' timestamps / the default unit
+second field value - first field value
+```
+
+#### 高级语法
+```
+SELECT DERIVATIVE(<function> ([ * | <field_key> | /<regular_expression>/ ]) [ , <unit> ] ) [INTO_clause] FROM_clause [WHERE_clause] GROUP_BY_clause [ORDER_BY_clause] [LIMIT_clause] [OFFSET_clause] [SLIMIT_clause] [SOFFSET_clause]
+```
+
+#### 高级语法的描述
+高级语法要求一个`GROUP BY time()`子句和一个嵌套的InfluxQL函数。查询首先计算在指定时间区间嵌套函数的结果，然后应用`DERIVATIVE()`函数的结果。
+
+`unit`参数是一个整数后面跟时间字符，该参数是可选的。如果没有指定`unit`，那么`unit`默认就是`GROUP BY time()`的间隔。
+
+`DERIVATIVE()`支持以下嵌套函数：`COUNT(), MEAN(), MEDIAN(), MODE(), SUM(), FIRST(), LAST(), MIN(), MAX(), PERCENTILE()`。
+
+#### 高级语法的例子
+##### 例一：计算一个字段平均值的变化率
+```
+> SELECT DERIVATIVE(MEAN("water_level")) FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+time                   derivative
+----                   ----------
+2015-08-18T00:12:00Z   -0.0129999999999999
+2015-08-18T00:24:00Z   -0.030999999999999694
+```
+
+该查询返回measurement`h2o_feet`的字段`water_level`的每12分钟的平均值得每12分钟的变化率。
+
+为了得到这个结果，InfluxDB首先计算`water_level`每12分钟的间隔的平均值，这一步就是使用带`GROUP BY time()`的`MEAN()`函数：
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+time                   mean
+----                   ----
+2015-08-18T00:00:00Z   2.09
+2015-08-18T00:12:00Z   2.077
+2015-08-18T00:24:00Z   2.0460000000000003
+```
+
+接下来，InfluxDB计算这些平均值每12分钟的变化率，第一个结果`0.0129999999999999`是两个相邻平均字段值到每12分钟的变化率。InfluxDB计算字段值的变化，并且转化到12分钟：
+
+```
+(2.077 - 2.09) / (12m / 12m)
+-------------    ----------
+       |               |
+       |          the difference between the field values' timestamps / the default unit
+second field value - first field value
+```
+
+##### 例二：计算一个字段平均值的变化率，并指明时间单位
+```
+> SELECT DERIVATIVE(MEAN("water_level"),6m) FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+time                   derivative
+----                   ----------
+2015-08-18T00:12:00Z   -0.00649999999999995
+2015-08-18T00:24:00Z   -0.015499999999999847
+```
+
+该查询返回measurement`h2o_feet`的字段`water_level`的每12分钟的平均值得每6分钟的变化率。
+
+为了得到这个结果，InfluxDB首先计算`water_level`每12分钟的间隔的平均值，这一步就是使用带`GROUP BY time()`的`MEAN()`函数：
+
+```
+> SELECT MEAN("water_level") FROM "h2o_feet" WHERE "location" = 'santa_monica' AND time >= '2015-08-18T00:00:00Z' AND time <= '2015-08-18T00:30:00Z' GROUP BY time(12m)
+
+name: h2o_feet
+time                   mean
+----                   ----
+2015-08-18T00:00:00Z   2.09
+2015-08-18T00:12:00Z   2.077
+2015-08-18T00:24:00Z   2.0460000000000003
+```
+
+接下来，InfluxDB计算这些平均值每6分钟的变化率，第一个结果`0.00649999999999995`是两个相邻平均字段值到每6分钟的变化率。InfluxDB计算字段值的变化，并且转化到6分钟：
+
+```
+(2.077 - 2.09) / (12m / 6m)
+-------------    ----------
+       |               |
+       |          the difference between the field values' timestamps / the specified unit
+second field value - first field value
+```
+
+### DIFFERENCE
+
