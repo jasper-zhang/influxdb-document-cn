@@ -26,4 +26,5 @@
     * [连续查询](Query_language/continuous_queries.md)
     * [函数](Query_language/functions.md)
     * [数学运算符](Query_language/math_operators.md)
+    * [认证和授权](Query_language/authentication_and_authorization.md)
 
