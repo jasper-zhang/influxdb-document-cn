@@ -97,3 +97,229 @@ password:
 ```
 
 ## 授权
+当开启认证之后，授权也就开启了。默认情况下，所有的用户都有所有的权限。
+
+### 用户类型和权限
+#### admin用户
+admin用户有所有数据库的读写权限，这些所有的权限包括如下：
+
+数据库管理：
+
+* `CREATE DATABASE`, `DROP DATABASE`
+* `DROP SERIES`, `DROP MEASUREMENT`
+* `CREATE RETENTION POLICY`,` ALTER RETENTION POLICY`, 和 `DROP RETENTION POLICY`
+* `CREATE CONTINUOUS QUERY`和`DROP CONTINUOUS QUERY`
+
+用户管理：
+
+* admin用户管理：  
+  `CREATE USER`, `GRANT ALL PRIVILEGES`, `REVOKE ALL PRIVILEGES`,和`SHOW USERS`
+
+* 非admin用户管理：  
+  `CREATE USER`, `GRANT [READ,WRITE,ALL]`, `REVOKE [READ,WRITE,ALL]`,和`SHOW GRANTS`
+  
+* 一般admin用户管理：  
+  `SET PASSWORD`和`DROP USER`
+ 
+#### 非admin用户
+非admin用户对于每个数据库，有如下三个权限：
+
+* `READ`
+* `WRITE`
+* `ALL`（包括`READ`和`WRITE`）
+
+`READ`,`WRITE`和`ALL`控制到每个数据库每个用户上。一个新的非admin用户对任何数据库都没有权限，除非被admin用户指定一个数据库权限。非admin用户可以在他们有`READ`或/和`WRITE`权限的机器上运行`SHOW`命令。
+
+### 用户管理命令
+#### admin用户管理
+当开启HTTP认证之后，在你操作系统之前，InfluxDB要求你至少创建一个admin用户。
+
+```
+CREATE USER admin WITH PASSWORD '<password>' WITH ALL PRIVILEGES
+``` 
+
+##### `CREATE`另一个admin用户
+
+```
+CREATE USER <username> WITH PASSWORD '<password>' WITH ALL PRIVILEGES
+```
+
+CLI例子：
+
+```
+> CREATE USER paul WITH PASSWORD 'timeseries4days' WITH ALL PRIVILEGES
+>
+```
+
+>注意：重复创建确切的用户语句是幂等的。如果有值发生变化，数据库将返回一个重复的用户错误。
+>CLI例子：
+>
+>```
+> CREATE USER todd WITH PASSWORD '123456' WITH ALL PRIVILEGES
+> CREATE USER todd WITH PASSWORD '123456' WITH ALL PRIVILEGES
+> CREATE USER todd WITH PASSWORD '123' WITH ALL PRIVILEGES
+ERR: user already exists
+> CREATE USER todd WITH PASSWORD '123456'
+ERR: user already exists
+> CREATE USER todd WITH PASSWORD '123456' WITH ALL PRIVILEGES
+>
+>```
+
+##### 给一个存在的用户`GRANT`权限
+
+```
+GRANT ALL PRIVILEGES TO <username>
+```
+
+CLI例子：
+
+```
+> GRANT ALL PRIVILEGES TO "todd"
+>
+```
+
+##### 给一个admin用户`REVOKE`权限
+```
+REVOKE ALL PRIVILEGES FROM <username>
+```
+
+CLI例子：
+
+```
+> REVOKE ALL PRIVILEGES FROM "todd"
+>
+```
+
+##### `SHOW`所有存在的用户以及其admin状态
+```
+SHOW USERS
+```
+
+CLI例子：
+
+```
+> SHOW USERS
+user 	 admin
+todd     false
+paul     true
+hermione false
+dobby    false
+```
+
+#### 非admin用户管理
+##### `CREATE`一个非admin用户：
+
+```
+CREATE USER <username> WITH PASSWORD '<password>'
+``` 
+
+CLI例子：
+
+```
+> CREATE USER todd WITH PASSWORD 'influxdb41yf3'
+> CREATE USER alice WITH PASSWORD 'wonder\'land'
+> CREATE USER "rachel_smith" WITH PASSWORD 'asdf1234!'
+> CREATE USER "monitoring-robot" WITH PASSWORD 'XXXXX'
+> CREATE USER "$savyadmin" WITH PASSWORD 'm3tr1cL0v3r'
+>
+```
+
+>注意：
+>
+>* 用户名如果用一个数字的开始，或者是一个influxql关键字，又或者包含任何特殊字符，例如：`!@#$%^&*()-`, 则必须用双引号引起来
+>* 密码字符串必须用单引号引起来。
+>* 在验证请求时不包含单引号。
+>
+>如果密码包含单引号或换行符，当提交认证请求时，应该用反斜杠转义。
+
+##### `GRANT READ, WRITE`或者`ALL`数据库权限给一个存在的用户
+
+```
+GRANT [READ,WRITE,ALL] ON <database_name> TO <username>
+```
+
+CLI例子： 给用户`todd``GRANT`数据库`NOAA_water_database`的`READ`的权限：
+
+```
+> GRANT READ ON "NOAA_water_database" TO "todd"
+>
+```
+
+给用户`todd``GRANT`数据库`NOAA_water_database`的`ALL`的权限：
+
+```
+> GRANT ALL ON "NOAA_water_database" TO "todd"
+>
+```
+
+##### `REVOKE READ, WRITE`或者`ALL` 数据库权限给一个存在的用户
+
+```
+REVOKE [READ,WRITE,ALL] ON <database_name> FROM <username>
+```
+
+CLI例子： 给用户`todd``REVOKE`数据库`NOAA_water_database`的`ALL`的权限：
+
+```
+> REVOKE ALL ON "NOAA_water_database" FROM "todd"
+>
+```
+
+给用户`todd``REVOKE`数据库`NOAA_water_database`的`WRITE`的权限：
+
+```
+> REVOKE WRITE ON "NOAA_water_database" FROM "todd"
+>
+```
+
+##### `SHOW`一个用户的数据库权限
+
+```
+SHOW GRANTS FOR <user_name>
+
+```
+
+CLI例子：
+
+```
+> SHOW GRANTS FOR "todd"
+database		            privilege
+NOAA_water_database	        WRITE
+another_database_name	    READ
+yet_another_database_name   ALL PRIVILEGES
+```
+
+#### 普通admin和非admin用户管理
+##### 重新设置一个用户的密码
+
+```
+SET PASSWORD FOR <username> = '<password>'
+```
+
+CLI例子：
+
+```
+> SET PASSWORD FOR "todd" = 'influxdb4ever'
+>
+```
+
+```
+> **Note:** The password [string](/influxdb/v1.3/query_language/spec/#strings) must be wrapped in single quotes.
+```
+
+##### `DROP`一个用户
+```
+DROP USER <username>
+```
+
+CLI例子：
+
+```
+> DROP USER "todd"
+>
+```
+
+## 认证和授权的HTTP错误
+没有认证或者是带有不正确认证信息的请求发到InfluxDB，将会返回一个`HTTP 401 Unauthorized`的错误。
+
+没有授权的用户的请求发到InfluxDB，将会返回一个`HTTP 403 Forbidden`的错误。
