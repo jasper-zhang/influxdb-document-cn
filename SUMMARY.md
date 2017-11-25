@@ -27,4 +27,5 @@
     * [函数](Query_language/functions.md)
     * [数学运算符](Query_language/math_operators.md)
     * [认证和授权](Query_language/authentication_and_authorization.md)
+    * [InfluxQL参考](Query_language/spec.md)
 
