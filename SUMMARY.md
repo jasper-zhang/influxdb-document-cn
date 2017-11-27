@@ -27,5 +27,9 @@
     * [函数](Query_language/functions.md)
     * [数学运算符](Query_language/math_operators.md)
     * [认证和授权](Query_language/authentication_and_authorization.md)
-    * [InfluxQL参考](Query_language/spec.md)
+* [故障排除](Troubleshooting/index.md)
+    * [FAQ](Troubleshooting/faq.md)
+    * [系统监控](Troubleshooting/system_monitor.md)
+    * [查询管理](Troubleshooting/query_management.md)
+    * [错误信息](Troubleshooting/error_messages.md)
 
