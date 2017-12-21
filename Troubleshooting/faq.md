@@ -75,3 +75,70 @@ run: parse config: time: unknown unit [µ|u] in duration [<integer>µ|<integer>u
 ```
 
 ## 命令行
+### 怎么让InfluxDB的CLI返回用户可读的时间戳?
+当你第一次连CLI，可以指定rfc3339精度：
+
+```
+$ influx -precision rfc3339
+```
+
+此外，如果你已经连接了CLI，则可以通过指令来指定：
+
+```
+$ influx
+Connected to http://localhost:8086 version 0.xx.x
+InfluxDB shell 0.xx.x
+> precision rfc3339
+>
+```
+
+### 一个非admin用户怎么在InfluxDB的CLI下USE一个数据库？
+在v1.3之前的版本中，非admin用户是不能在CLI执行`USE <database_name>`的查询的，即使拥有这个数据库的`READ`或/和`Write`权限。
+
+从1.3开始，非admin用户也可以执行`USE <database_name>`的查询只要拥有这个数据库的`READ`或/和`Write`权限。如果非admin使用`USE`一个数据库，但是没有权限时，系统会返回一个错误：
+
+```
+ERR: Database <database_name> doesn't exist. Run SHOW DATABASES for a list of existing databases.
+```
+
+>注意：非admin用户执行`SHOW DATABASES`，只返回有权限的数据库。
+
+### 在InfluxDB的CLI下，如何写入一个非默认的retention policy？
+使用语法`INSERT INTO [<database>.]<retention_policy> <line_protocol>`可以在CLI下把数据写入非`DEFAULT`的retention policy里面。（如果使用HTTP来写入数据的话，可以通过参数`db`和`rp`来指定数据库和retention policy）。
+
+例如：
+
+```
+> INSERT INTO one_day mortality bool=true
+Using retention policy one_day
+> SELECT * FROM "mydb"."one_day"."mortality"
+name: mortality
+---------------
+time                             bool
+2016-09-13T22:29:43.229530864Z   true
+```
+
+注意如果要查询出非`DEFAULT`的retention policy，需要指定完整的measurement路径：
+
+```
+"<database>"."<retention_policy>"."<measurement>"
+```
+
+### 怎么取消一个长期运行的查询？
+在CLI下，你可以用`Ctrl+C`来取消执行的查询。对于其他的长时间运行的查询，你可以先使用`SHOW QUERIES`列出来，然后使用`KILL QUERY`来停止对应的查询。
+
+### 为什么不能查询布尔型的field value？
+对于写和读，接受布尔型的数据的语法不一样。
+
+ 布尔语法|写|读
+---- | ---|----
+t,f	|👍|	❌
+T,F|	👍|	❌
+true,false	|👍|	👍
+True,False	|👍|	👍
+TRUE,FALSE	|👍|	👍
+
+例如，`SELECT * FROM "hamlet" WHERE "bool"=True`返回所有`bool`的值为`TRUE`的，但是`SELECT * FROM "hamlet" WHERE "bool"=T`什么都不会返回。
+[Github Issue #3939](https://github.com/influxdb/influxdb/issues/3939)
+
+### InfluxDB怎么处理不同shard里面的类型冲突？
