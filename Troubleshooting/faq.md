@@ -141,4 +141,62 @@ TRUE,FALSE	|👍|	👍
 例如，`SELECT * FROM "hamlet" WHERE "bool"=True`返回所有`bool`的值为`TRUE`的，但是`SELECT * FROM "hamlet" WHERE "bool"=T`什么都不会返回。
 [Github Issue #3939](https://github.com/influxdb/influxdb/issues/3939)
 
-### InfluxDB怎么处理不同shard里面的类型冲突？
+### InfluxDB怎么处理不同shard里面的字段类型冲突？
+字段的值类型可以是浮点，整数，字符串和布尔型。字段的类型在同一个shard里面是一致的，但是在不同的shard里面可以不一样。
+
+#### SELECT语句
+如果所有值都具有相同的类型，`SELECT`语句会返回所有字段值。如果字段的值类型在不同的shard里面不一样，InfluxDB首先执行正常操作并将所有值返回为出现在下面的列表的第一个类型：浮点，整数，字符串和布尔型。
+
+如果你的数据字段的值类型不符，使用语法`<field_key>::<type>`查询不同的数据类型。
+
+##### 例子
+measurement`just_my_type`有一个字段叫作`my_field`。`my_field`在四个不同shard里面有四个不同的类型分别为（浮点，整数，字符串和布尔型）。
+
+`SELECT*`只返回浮点数和整数字段值。注意InfluxDB在返回时把整数转化为了浮点类型。
+
+```
+SELECT * FROM just_my_type
+
+name: just_my_type
+------------------
+time		                	my_field
+2016-06-03T15:45:00Z	  9.87034
+2016-06-03T16:45:00Z	  7
+```
+
+`SELECT<field_key>::<type>[…]`返回所有值类型。我们可以在InfluxDB列名里增加自己的列输出的值类型。在可能的情况下，InfluxDB字段值会转到另一个类型；它把整数7在第一列中转化为了浮点数，而且把9.879034在第二列中转化为了整数。InfluxDB不能把浮点或整数转化为字符串或布尔值。
+
+```golang
+SELECT "my_field"::float,"my_field"::integer,"my_field"::string,"my_field"::boolean FROM just_my_type
+
+name: just_my_type
+------------------
+time			               my_field	 my_field_1	 my_field_2		 my_field_3
+2016-06-03T15:45:00Z	 9.87034	  9
+2016-06-03T16:45:00Z	 7	        7
+2016-06-03T17:45:00Z			                     a string
+2016-06-03T18:45:00Z					                                true
+```
+
+#### SHOW FIELD KEYS查询
+`SHOW FIELD KEYS`会返回相关field在不同的shard里面的每种类型。
+
+measurement`just_my_type`有一个字段叫作`my_field`。`my_field`在四个不同shard里面有四个不同的类型分别为（浮点，整数，字符串和布尔型）。`SHOW FIELD KEYS`返回所有四种数据类型：
+
+```
+> SHOW FIELD KEYS
+
+name: just_my_type
+fieldKey   fieldType
+--------   ---------
+my_field   float
+my_field   string
+my_field   integer
+my_field   boolean
+```
+
+### InfluxDB可以存储的最大最小整数是什么？
+
+
+
+
