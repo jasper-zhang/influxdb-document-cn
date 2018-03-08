@@ -543,7 +543,7 @@ time                   mean
 >注意：如果前一个值在查询时间之外，则`fill(previous)`不会在时间间隔里填充数据。
 
 
-#### 高级语法的共同问题
+#### 高级语法的常见问题
 ##### 问题一：如果`EVERY`间隔大于`GROUP BY time()`的间隔
 如果`EVERY`间隔大于`GROUP BY time()`间隔，则CQ以与`EVERY`间隔相同的间隔执行，并运行一个单个查询，该查询涵盖`now()`和`now()`减去`EVERY`间隔之间的时间范围(不是在`now()`和`now()`减去`GROUP BY time()`间隔之间）。
 
@@ -620,7 +620,7 @@ DROP CONTINUOUS QUERY <cq_name> ON <database_name>
 ```
 
 ### 修改CQ
-CQ一旦创建就不能删除了，你必须`DROP`再`CREATE`才行。
+CQ一旦创建就不能修改了，你必须`DROP`再`CREATE`才行。
 
 ## CQ的使用场景
 ### 采样和数据保留
