@@ -52,7 +52,7 @@ SELECT <field_key>[,<field_key>,<tag_key>] FROM <measurement_name>[,<measurement
 
 `SELECT "<field_key>","<tag_key>"`
 
-返回特定的field和tag，`SELECT`在包括一个tag时，必须只是指定一个field。
+返回特定的field和tag，`SELECT`在包括一个tag时，必须至少指定一个field。
 
 `SELECT "<field_key>"::field,"<tag_key>"::tag`
 
