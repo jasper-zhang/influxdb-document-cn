@@ -378,7 +378,7 @@ END
 下面是2016年8月28日上午的日志输出：
 
 >在8:00`cq_advanced_for`执行时间范围`time> ='7:00'AND time <'8:00'`的查询。
-`cq_advanced_for`向`average_passengers`写入一个点：
+`cq_advanced_for`向`average_passengers`写入两个点：
 >
 ```
 name: average_passengers
@@ -551,7 +551,7 @@ time                   mean
 
 此行为是故意的，并防止CQ在执行时间之间丢失数据。
 
-##### 问题二：如果`IF`间隔比执行的间隔少
+##### 问题二：如果`FOR`间隔比执行的间隔少
 如果`FOR`间隔比`GROUP BY time()`或者`EVERY`的间隔少，InfluxDB返回如下错误：
 
 ```
