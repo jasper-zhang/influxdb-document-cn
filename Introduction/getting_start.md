@@ -16,7 +16,7 @@ InfluxDB shell 1.2.x
 ```
 
 >说明:  
-* InfluxDB的HTTP接口默认起在`8086`上，所以`inlux`默认也是连的本地的`8086`端口，你可以通过`influx --help`来看怎么修改默认值。
+* InfluxDB的HTTP接口默认起在`8086`上，所以`influx`默认也是连的本地的`8086`端口，你可以通过`influx --help`来看怎么修改默认值。
 * `-precision`参数表明了任何返回的时间戳的格式和精度，在上面的例子里，`rfc3339`是让InfluxDB返回[RFC339](https://www.ietf.org/rfc/rfc3339.txt)格式(YYYY-MM-DDTHH:MM:SS.nnnnnnnnnZ)的时间戳。
 
 这样这个命令行已经准备好接收influx的查询语句了(简称InfluxQL)，用`exit`可以退出命令行。
@@ -108,7 +108,7 @@ time		    	                     host     	region   value
 > INSERT temperature,machine=unit42,type=assembly external=25,internal=37
 >
 ```
-查询的时候想要返回所以的字段和tag，可以用`*`：
+查询的时候想要返回所有的字段和tag，可以用`*`：
 
 ```
 
