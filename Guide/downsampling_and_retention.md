@@ -7,7 +7,7 @@ InfluxDB提供了两个特性——连续查询(Continuous Queries简称CQ)和�
 ## 定义
 **Continuous Query (CQ)**是在数据库内部自动周期性跑着的一个InfluxQL的查询，CQs需要在`SELECT`语句中使用一个函数，并且一定包括一个`GROUP BY time()`语句。
 
-**Retention Policy (RP)**是InfluxDB数据架构的一部分，它描述了InfluxDB保存数据的时间。InfluxDB会比较服务器本地的时间戳和你数据的时间戳，并删除比你在RPs里面用`DURATION`设置的更老的数据。单个数据库中可以有多个RPs但是每个数据的RPs是唯一的。
+**Retention Policy (RP)**是InfluxDB数据架构的一部分，它描述了InfluxDB保存数据的时间。InfluxDB会比较服务器本地的时间戳和请求数据里的时间戳，并删除比你在RPs里面用`DURATION`设置的更老的数据。一个数据库中可以有多个RPs但是每个数据库的RPs是唯一的。
 
 这一章不会详细地介绍创建和管理CQs和RPs的语法，如果你对这两个概念还是很陌生的话，建议查看[CQ文档]()和[RP文档]()。
 
@@ -112,7 +112,7 @@ time			                mean_phone  mean_website
 
 注意到`downsampled_orders`返回的第一个时间戳比`orders`返回的第一个时间戳要早，这是因为InfluxDB已经删除了`orders`中时间比本地早两个小时的数据。InfluxDB会在52周之后开始删除`downsampled_orders`中的数据。
 
->说明：注意这里我们在第二个语句中使用了` "<retention_policy>"."<measurement>"`来查询`downsampled_orders`，因为只有不是使用默认的RP我们就需要指定RP。
+>说明：注意这里我们在第二个语句中使用了` "<retention_policy>"."<measurement>"`来查询`downsampled_orders`，因为只要不是使用默认的RP我们就需要指定RP。
 >
 默认InfluxDB是每隔三十分钟check一次RP，在两次check之间，`orders`中可能有超过两个小时的数据，这个check的间隔可以在InfluxDB的配置文件中更改。
 

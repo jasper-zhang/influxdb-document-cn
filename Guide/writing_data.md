@@ -16,14 +16,14 @@ curl -i -XPOST http://localhost:8086/query --data-urlencode "q=CREATE DATABASE m
 curl -i -XPOST 'http://localhost:8086/write?db=mydb' --data-binary 'cpu_load_short,host=server01,region=us-west value=0.64 1434055562000000000'
 ```
 
-当写入这条数据点的时候，你必须明确存在一个数据库对应名字是`db`参数的值。如果你没有通过`rp`参数设置retention policy的话，那么这个数据会写到`db`默认的retention policy中。想要获取可能参数的完整信息，请移步到`API参考`章节。
+当写入这条数据点的时候，你必须明确存在一个数据库对应名字是`db`参数的值。如果你没有通过`rp`参数设置retention policy的话，那么这个数据会写到`db`默认的retention policy中。想要获取更多参数的完整信息，请移步到`API参考`章节。
 
 POST的请求体我们称之为`Line Protocol`，包含了你希望存储的时间序列数据。它的组成部分有measurement，tags，fields和timestamp。measurement是InfluxDB必须的，严格地说，tags是可选的，但是对于大部分数据都会包含tags用来区分数据的来源，让查询变得容易和高效。tag的key和value都必须是字符串。fields的key也是必须的，而且是字符串，默认情况下field的value是float类型的。timestamp在这个请求行的最后，是一个从1/1/1970 UTC开始到现在的一个纳秒级的Unix time，它是可选的，如果不传，InfluxDB会使用服务器的本地的纳米级的timestamp来作为数据的时间戳，注意无论哪种方式，在InfluxDB中的timestamp只能是UTC时间。
 
 ### 同时写入多个点
 要想同时发送多个数据点到多个series(在InfluxDB中measurement加tags组成了一个series)，可以用新的行来分开这些数据点。这种批量发送的方式可以获得更高的性能。
 
-下面的例子就是写了三个数据点到`mydb`数据库中。第一个点属于series其measurement为`cpu_load_short`，tag是`host=server02`，timestamp是server本地的时间戳；第二个点同样是measurement为`cpu_load_short`，但是tag为`host=server02,region=us-west`,且有明确timestamp为`1422568543702900257`的series；第三个数据点和第二个的timestamp是一样的，但是series不一样，其measurement为`cpu_load_short`，tag为`direction=in,host=server01,region=us-west`。
+下面的例子就是写了三个数据点到`mydb`数据库中。第一个点所属series的measurement为`cpu_load_short`，tag是`host=server02`，timestamp是server本地的时间戳；第二个点同样是measurement为`cpu_load_short`，但是tag为`host=server02,region=us-west`,且有明确timestamp为`1422568543702900257`的series；第三个数据点和第二个的timestamp是一样的，但是series不一样，其measurement为`cpu_load_short`，tag为`direction=in,host=server01,region=us-west`。
 
 ```
 curl -i -XPOST 'http://localhost:8086/write?db=mydb' --data-binary 'cpu_load_short,host=server02 value=0.67
@@ -57,7 +57,7 @@ InfluxDB使用HTTP作为方便和广泛支持的数据传输协议。
 
 现代web的APIs都基于REST的设计，因为这样解决了一个共同的需求。因为随着终端数量的增长，组织系统的需求变得越来越迫切。REST是为了组织大量终端的一个业内认可的标准。这种一致性对于开发者和API的消费者都是一件好事：所有的参与者都知道期望的是什么。
 
-REST的确是很方便的，而InfluxDB也只提供了三个API，这使的InfluxQL在翻译为HTTP请求的时候很简单便捷。 所以InfluxDB API并不是RESTful的。
+REST的确是很方便的，而InfluxDB也只提供了三个API，这使得InfluxQL在翻译为HTTP请求的时候很简单便捷。 所以InfluxDB API并不是RESTful的。
 
 ### HTTP返回值概要
 * 2xx：如果你写了数据后收到`HTTP 204 No Content`，说明写入成功了！
